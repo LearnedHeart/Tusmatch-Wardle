@@ -1,0 +1,45 @@
+
+Trier mots proposé (!= mots dict) VVVV
+
+Système serveur mot du jour (réinitiliaser tt les 24h)
+hugginface ? 
+
+Match privés : 
+
+    code de connexion 
+    les autres rejoignent 
+    Tableau princpal et visu des joueurs sans lettres 
+    Pseudos 
+    Timer (on off)
+    quand l'un a fiat une ligne, l'autre a X temps pour la faire aussi
+    système de points par lignes et de gagnant 
+    recommencer partie reste dnas la meme partie 
+    inviter un joueur, garde la me^me partie + un joueur 
+    tablau score et wins 
+    3 players max
+
+
+Match public : commes matchs privés mais nouveau groupe a chaque fois 
+    Avec gens aléatoires 
+    Voir pseudo et drapeau 
+    Attente 
+
+
+Plus tard : 
+
+Classic et battle royale : 
+
+Nombre de gens pour chaque grilles (mario kart survie)
++ timer par sécurité
+
+Lobby + 7 personnes. cota calculer en pourcentage du nb de personnes 
+
+
+Objets, indices 
+3 players --> 10 players max mais payant 
+
+Dans le menu share, faire un créer puzzle avec le mot que tu veux 
+partager avec un lien 
+
+rajouter PHEW quand c'est à la dernière ligner
+rajouter réactions des personnages (multiplayer)

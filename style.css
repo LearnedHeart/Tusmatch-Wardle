@@ -2,20 +2,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
 
 :root {
-    /* Thème JOUR (Défaut) */
-    --bg-color: #f0f2f5;
-    --text-color: #1a1a1b;
-    --tile-border: #d3d6da;
-    --tile-bg: #ffffff;
-    --key-bg: #d3d6da;
-    --correct: #6aaa64;
-    --present: #c9b458;
-    --absent: #787c7e;
-    --start-tile: #058ae3;
-    --active-border: #878a8c;
+    /* Thème COLORÉ (Défaut) */
+    --bg-color: #004678;
+    --text-color: #fff;
+    --tile-border: #ffffff50;
+    --tile-bg: #ffffff20;
+    --key-bg: #005694;
+    --correct: #ff3d4e;
+    --start-tile: #0c9eff;
+    --present: #ffc800;
+    --absent: #0060a5;
+    --active-border: transparent;
+    --filled-tile: rgba(255, 255, 255, 0.6);
 }
 
-body.dark {
+body.sombre {
     /* Thème NUIT */
     --bg-color: #121213;
     --text-color: #ffffff;
@@ -27,20 +28,22 @@ body.dark {
     --absent: #3a3a3c;
     --start-tile: #058ae3;
     --active-border: #565758;
+    --filled-tile: #565758;
 }
 
-body.colorful {
-    /* Thème COLORÉ (Candy/Vibrant) */
-    --bg-color: #004678;
-    --text-color: #fff;
-    --tile-border: #ffffff50;
-    --tile-bg: #ffffff20;
-    --key-bg: #005694;
-    --correct: #ff3d4e;
-    --start-tile: #0c9eff;
-    --present: #ffc800;
-    --absent: #0060a5;
-    --active-border: transparent;
+body.claire {
+    /* Thème JOUR */
+    --bg-color: #f0f2f5;
+    --text-color: #1a1a1b;
+    --tile-border: #d3d6da;
+    --tile-bg: #ffffff;
+    --key-bg: #d3d6da;
+    --correct: #6aaa64;
+    --present: #c9b458;
+    --absent: #787c7e;
+    --start-tile: #058ae3;
+    --active-border: #878a8c;
+    --filled-tile: #878a8c;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -138,7 +141,7 @@ h1 { font-size: 4rem; margin-bottom: 2rem; letter-spacing: 2px; }
     gap: 50px;
     height: 100%;
     width: 100%;
-    max-width: 500px;
+    /* max-width: 500px; Removed to allow wider grids for long words */
     padding: 20px;
     margin: 0 auto;
 }
@@ -160,7 +163,7 @@ h1 { font-size: 4rem; margin-bottom: 2rem; letter-spacing: 2px; }
 
 .tile {
     width: 62px;
-    max-width: 14vw; /* Responsive for mobile */
+    max-width: calc(90vw / var(--cols, 5)); /* Responsive based on word length */
     aspect-ratio: 1 / 1;
     border: 2px solid var(--tile-border);
     background: var(--tile-bg);
@@ -212,8 +215,17 @@ h1 { font-size: 4rem; margin-bottom: 2rem; letter-spacing: 2px; }
 
 .key.absent {
     background-color: var(--absent);
+    /* Default behavior for non-clear themes: slightly translucent to deemphasize */
     color: white;
     opacity: 0.3;
+    filter: none;
+}
+
+/* Override for light/"claire" theme: keep text readable and only dim background */
+body.claire .key.absent {
+    color: var(--text-color);
+    opacity: 1; /* no global translucency so text stays visible */
+    filter: brightness(0.9);
 }
 
 
@@ -368,3 +380,138 @@ h1 { font-size: 4rem; margin-bottom: 2rem; letter-spacing: 2px; }
 .modal.victory h2 { color: var(--correct); }
 .modal.defeat h2 { color: var(--present); } /* Or red if preferred */
 
+
+/* In-Game Player List (Skribbl Style) */
+#ingame-players-list {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 200px;
+    background: var(--tile-bg);
+    border: 1px solid var(--tile-border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 40;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.ingame-player-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 5px;
+    border: 1px solid transparent;
+}
+
+.ingame-player-card.is-me {
+    border-color: var(--correct);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ingame-player-avatar {
+    width: 30px;
+    height: 30px;
+    background: var(--key-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.ingame-player-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.ingame-player-name {
+    font-size: 0.9rem;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ingame-player-status {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* Responsive: Hide on small screens or move to bottom */
+@media (max-width: 1000px) {
+    #ingame-players-list {
+        display: none; /* Or move to a drawer */
+    }
+}
+
+/* Sidebar Styles */
+#ingame-sidebar {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 220px;
+    background: var(--tile-bg);
+    border: 1px solid var(--tile-border);
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    z-index: 40;
+    max-height: 80vh;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--tile-border);
+}
+
+.room-code-box {
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-actions {
+    display: flex;
+    gap: 5px;
+}
+
+#ingame-players-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+/* Hide sidebar on mobile */
+@media (max-width: 1000px) {
+    #ingame-sidebar {
+        display: none;
+    }
+}
+
+/* Bounce Animation for Share Buttons */
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+    40% {transform: translateY(-5px);}
+    60% {transform: translateY(-3px);}
+}
+
+.bounce {
+    animation: bounce 0.5s;
+}

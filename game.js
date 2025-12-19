@@ -1,9 +1,25 @@
 // game.js
 
+// --- SUPABASE CONFIGURATION ---
+// REMPLACE CES VALEURS PAR CELLES DE TON PROJET SUPABASE
+const supabaseUrl = 'https://mimieikswytpoouowlye.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbWllaWtzd3l0cG9vdW93bHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2OTc4MTYsImV4cCI6MjA4MTI3MzgxNn0.Jvg5YSZCW_5kbGRwkGD0e6k5QGcSlfpY4QtvwDzJUq4';
+// On utilise un nom différent pour éviter les conflits avec la librairie globale 'supabase'
+let supabaseClient = null;
+
+if (typeof createClient !== 'undefined') {
+    supabaseClient = createClient(supabaseUrl, supabaseKey);
+} else if (window.supabase && typeof window.supabase.createClient === 'function') {
+    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+} else {
+    console.error("Impossible d'initialiser Supabase : createClient introuvable.");
+}
+
 // --- CONFIGURATION ---
 let wordLength = 5;
 const MAX_GUESSES = 6;
-let DICTIONARY = [];
+let DICTIONARY = []; // Mots valides pour les essais (mots.txt)
+let COMMON_WORDS = []; // Mots cibles possibles (mots_courants.txt)
 
 // Variables globales
 let targetWord = "";
@@ -15,33 +31,109 @@ let currentHints = [];
 const grid = document.getElementById("grid");
 const themeBtn = document.getElementById("themeToggle");
 
-async function loadDictionary() {
+async function loadDictionaries() {
     try {
-        const response = await fetch('mots.txt');
-        const text = await response.text();
-        return text.split('\n')
+        // Charger le dictionnaire complet (mots valides)
+        const responseDict = await fetch('mots.txt');
+        const textDict = await responseDict.text();
+        DICTIONARY = textDict.split('\n')
             .map(line => {
                 let clean = line.trim();
                 if (clean.endsWith(',')) clean = clean.slice(0, -1);
                 return clean.replace(/^"|"$/g, '');
             })
             .filter(word => word.length > 0);
+
+        // Charger les mots courants (mots cibles)
+        const responseCommon = await fetch('mots_courants.txt');
+        const textCommon = await responseCommon.text();
+        COMMON_WORDS = textCommon.split('\n')
+            .map(line => {
+                let clean = line.trim();
+                if (clean.endsWith(',')) clean = clean.slice(0, -1);
+                return clean.replace(/^"|"$/g, '');
+            })
+            .filter(word => word.length > 0);
+
     } catch (e) {
-        console.error("Erreur chargement dictionnaire:", e);
-        return ["POMME", "MONDE"];
+        console.error("Erreur chargement dictionnaires:", e);
+        // Fallback
+        DICTIONARY = ["POMME", "MONDE", "TESTS"];
+        COMMON_WORDS = ["POMME", "MONDE"];
     }
 }
 
+// --- LOCAL DAILY WORD LOGIC ---
+// Générateur pseudo-aléatoire basé sur une graine (seed)
+function seededRandom(seed) {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+function getDailyWord(offset = 0) {
+    if (COMMON_WORDS.length === 0) return "ERREUR";
+
+    const now = new Date();
+    // Ajouter l'offset en jours
+    now.setDate(now.getDate() + offset);
+
+    // Créer une chaîne de date locale YYYY-MM-DD
+    // Cela garantit que c'est basé sur le fuseau horaire de l'utilisateur
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+
+    // Créer un hash simple de la date pour servir de graine
+    let seed = 0;
+    for (let i = 0; i < dateString.length; i++) {
+        seed = ((seed << 5) - seed) + dateString.charCodeAt(i);
+        seed |= 0; // Convertir en entier 32 bits
+    }
+
+    // Générer un nombre aléatoire avec cette graine
+    const rand = seededRandom(seed);
+    
+    // Choisir un index aléatoire dans la liste
+    const index = Math.floor(rand * COMMON_WORDS.length);
+    
+    console.log(`Date: ${dateString}, Seed: ${seed}, Index: ${index}, Mot: ${COMMON_WORDS[index]}`);
+    return COMMON_WORDS[index];
+}
+
+// Fonction de test pour le développeur
+window.testNextDay = function(days = 1) {
+    console.log(`Test: Récupération du mot dans ${days} jours...`);
+    const word = getDailyWord(days);
+    if (word) {
+        console.log(`Le mot dans ${days} jours sera : ${word}`);
+        alert(`Le mot dans ${days} jours sera : ${word}`);
+    } else {
+        console.log("Impossible de récupérer le mot.");
+    }
+};
+
 // --- INITIALISATION ---
 async function initGame(customWord = null) {
-    if (DICTIONARY.length === 0) {
-        DICTIONARY = await loadDictionary();
+    if (DICTIONARY.length === 0 || COMMON_WORDS.length === 0) {
+        await loadDictionaries();
     }
     
     if (customWord) {
         targetWord = customWord.toUpperCase();
     } else {
-        targetWord = DICTIONARY[Math.floor(Math.random() * DICTIONARY.length)];
+        // Récupérer le mot du jour localement (basé sur la date)
+        let dailyWord = getDailyWord();
+        
+        if (dailyWord) {
+            targetWord = dailyWord.toUpperCase();
+            console.log("Mot du jour chargé (Local) :", targetWord);
+        } else {
+            // Fallback ultime
+            targetWord = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
+        }
     }
     wordLength = targetWord.length;
     
@@ -51,12 +143,12 @@ async function initGame(customWord = null) {
     isGameOver = false;
     
     // Init hints
-    currentHints = Array(wordLength).fill(null);
-    currentHints[0] = targetWord[0];
+    updateHintsFromHistory();
     currentGuess[0] = targetWord[0];
 
     // Création de la grille HTML
     grid.innerHTML = "";
+    grid.style.setProperty('--cols', wordLength);
     for (let i = 0; i < MAX_GUESSES; i++) {
         const row = document.createElement("div");
         row.className = "row";
@@ -74,8 +166,8 @@ async function initGame(customWord = null) {
         grid.appendChild(row);
     }
     
-    // Charger le thème (par défaut 'colorful')
-    const savedTheme = localStorage.getItem('theme') || 'colorful';
+    // Charger le thème (par défaut '' -> Colorful)
+    const savedTheme = localStorage.getItem('theme') || '';
     document.body.className = savedTheme;
 
     updateGrid();
@@ -117,7 +209,9 @@ function handleBackspace() {
     for (let i = wordLength - 1; i >= 0; i--) {
         if (currentGuess[i]) {
             currentGuess[i] = "";
-            currentHints[i] = null; // Remove the hint as well
+            // Supprimer temporairement le hint pour cette tentative
+            // Il sera restauré au prochain tour grâce à updateHintsFromHistory()
+            currentHints[i] = null; 
             break;
         }
     }
@@ -171,6 +265,30 @@ function updateGrid() {
             tiles[i].classList.remove("start-tile");
         }
     }
+
+    // Envoyer l'état au multijoueur si actif
+    if (typeof window.sendMultiplayerState === 'function') {
+        const filledCount = currentGuess.filter(l => l !== "").length;
+        window.sendMultiplayerState(filledCount, guesses.length);
+    }
+}
+
+function updateHintsFromHistory() {
+    // Réinitialiser les hints
+    currentHints = Array(wordLength).fill(null);
+    // Toujours donner la première lettre
+    if (targetWord && targetWord.length > 0) {
+        currentHints[0] = targetWord[0];
+    }
+    
+    // Parcourir tous les essais précédents pour trouver les lettres bien placées
+    guesses.forEach(guess => {
+        for (let i = 0; i < wordLength; i++) {
+            if (guess[i] === targetWord[i]) {
+                currentHints[i] = guess[i];
+            }
+        }
+    });
 }
 
 function submitGuess() {
@@ -196,6 +314,12 @@ function submitGuess() {
             result[i] = "present";
             targetParts[targetParts.indexOf(guessParts[i])] = null;
         }
+    }
+
+    // --- MULTIPLAYER HOOK ---
+    if (typeof window.sendMultiplayerGuess === 'function') {
+        const pattern = result.map(r => r === 'correct' ? '2' : r === 'present' ? '1' : '0').join('');
+        window.sendMultiplayerGuess(pattern, guesses.length);
     }
     
     // ANIMATION DE RÉVÉLATION (Flip successif)
@@ -237,15 +361,8 @@ function submitGuess() {
         } else {
             // Copier les lettres correctes (sans style) vers la ligne suivante
             if (guesses.length < MAX_GUESSES) {
-                // Prepare hints for next round
-                currentHints = Array(wordLength).fill(null);
-                currentHints[0] = targetWord[0];
-                
-                for (let i = 0; i < wordLength; i++) {
-                    if (result[i] === 'correct') {
-                        currentHints[i] = guessString[i];
-                    }
-                }
+                // Recalculer les indices basés sur l'historique complet
+                updateHintsFromHistory();
 
                 currentGuess = Array(wordLength).fill("");
                 // Only pre-fill the first letter if it's a hint
@@ -294,7 +411,13 @@ function showEndScreen(victory, word) {
 
 restartBtn.addEventListener('click', () => {
     endModal.classList.add('hidden');
-    initGame();
+    
+    // Multiplayer Hook
+    if (typeof window.triggerMultiplayerRestart === 'function' && window.currentRoomCode) {
+        window.triggerMultiplayerRestart();
+    } else {
+        initGame();
+    }
 });
 
 shareBtn.addEventListener('click', () => {
@@ -303,20 +426,21 @@ shareBtn.addEventListener('click', () => {
 });
 
 // Gestion du bouton Thème (affiche le label du thème)
-const themes = ['', 'dark', 'colorful'];
+const themes = ['', 'claire', 'sombre'];
 function themeLabel(cls) {
-    if (!cls || cls === '') return 'Light';
-    if (cls === 'dark') return 'Dark';
-    if (cls === 'colorful') return 'Colorful';
-    return 'Light';
+    if (!cls || cls === '') return 'Coloré';
+    if (cls === 'claire') return 'Claire';
+    if (cls === 'sombre') return 'Sombre';
+    return 'Coloré';
 }
 
 // Initialiser label bouton thème
-const savedThemeBtn = localStorage.getItem('theme') || document.body.className || '';
+const savedThemeBtn = localStorage.getItem('theme') || '';
+document.body.className = savedThemeBtn;
 themeBtn.textContent = themeLabel(savedThemeBtn);
 
 themeBtn.addEventListener('click', () => {
-    let currentTheme = localStorage.getItem('theme') || document.body.className || '';
+    let currentTheme = document.body.className || '';
     let nextIndex = (themes.indexOf(currentTheme) + 1) % themes.length;
     let newTheme = themes[nextIndex];
     document.body.className = newTheme;
@@ -332,5 +456,8 @@ document.getElementById('devModeBtn').addEventListener('click', () => {
     }
 });
 
-// Lancer le jeu
-initGame();
+// Lancer le jeu (sauf si mode privé, on attend le lobby)
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('mode') !== 'private') {
+    initGame();
+}

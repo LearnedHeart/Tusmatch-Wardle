@@ -2,19 +2,19 @@
 const themeBtn = document.getElementById('themeToggle');
 const body = document.body;
 
-// Gestion des thèmes (cycle: Light -> Dark -> Colorful)
-const themes = ['', 'dark', 'colorful'];
+// Gestion des thèmes (cycle: Coloré -> Claire -> Sombre)
+const themes = ['', 'claire', 'sombre'];
 let currentThemeIndex = 0;
 
 function themeLabel(cls) {
-    if (!cls || cls === '') return 'Light';
-    if (cls === 'dark') return 'Dark';
-    if (cls === 'colorful') return 'Colorful';
-    return 'Light';
+    if (!cls || cls === '') return 'Coloré';
+    if (cls === 'claire') return 'Claire';
+    if (cls === 'sombre') return 'Sombre';
+    return 'Coloré';
 }
 
-// Charger le thème sauvegardé (par défaut 'colorful')
-const savedTheme = localStorage.getItem('theme') || 'colorful';
+// Charger le thème sauvegardé (par défaut '' -> Coloré)
+const savedTheme = localStorage.getItem('theme') || '';
 body.className = savedTheme;
 currentThemeIndex = themes.indexOf(savedTheme);
 
