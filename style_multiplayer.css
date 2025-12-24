@@ -25,13 +25,32 @@
     text-transform: uppercase; text-align: center;
 }
 #opponents-container {
-    display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;
+    display: flex; gap: 10px; justify-content: center; margin-bottom: 5px;
     flex-wrap: wrap;
 }
 .opponent-card {
     background: var(--tile-bg); padding: 10px; border-radius: 8px;
     border: 1px solid var(--tile-border); width: 160px;
+    transition: width 0.3s ease;
 }
+
+/* Dynamic Sizing based on opponent count */
+/* 1 Opponent: Large */
+#opponents-container.count-1 .opponent-card { width: 280px; }
+#opponents-container.count-1 .mini-row { height: 28px; gap: 4px; }
+#opponents-container.count-1 .opponent-name { font-size: 1.2rem; margin-bottom: 10px; }
+
+/* 2 Opponents: Medium */
+#opponents-container.count-2 .opponent-card { width: 200px; }
+#opponents-container.count-2 .mini-row { height: 20px; gap: 3px; }
+#opponents-container.count-2 .opponent-name { font-size: 1rem; }
+
+/* 3+ Opponents: Small (Default) */
+#opponents-container.count-3 .opponent-card,
+#opponents-container.count-4 .opponent-card { width: 150px; }
+#opponents-container.count-3 .mini-row,
+#opponents-container.count-4 .mini-row { height: 15px; gap: 2px; }
+
 .opponent-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; text-align: center; }
 .mini-grid { display: grid; gap: 2px; }
 .mini-row { display: grid; grid-template-columns: repeat(var(--mini-cols, 5), 1fr); gap: 2px; height: 15px; }
@@ -57,6 +76,96 @@
 .lobby-section-title {
     font-size: 0.9rem; font-weight: bold; margin-bottom: 10px; 
     text-align: left; width: 100%; opacity: 0.8;
+}
+
+/* Avatar Selector */
+.avatar-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.avatar-preview-container {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 3px solid var(--start-tile);
+    overflow: hidden;
+    background: var(--tile-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-nav-btn {
+    background: var(--key-bg);
+    color: var(--text-color);
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+}
+
+.avatar-nav-btn:hover {
+    transform: scale(1.1);
+    background: var(--tile-border);
+}
+
+/* Game Mode Selector */
+.game-mode-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    justify-content: center;
+}
+
+.mode-option {
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--tile-border);
+    background: var(--tile-bg);
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.2s;
+    user-select: none;
+    -webkit-user-select: none; /* Safari */
+    -moz-user-select: none; /* Firefox */
+    -ms-user-select: none; /* IE10+/Edge */
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+}
+
+.mode-option:focus {
+    outline: none;
+}
+
+.mode-option.selected {
+    background: var(--start-tile);
+    color: white;
+    border-color: var(--start-tile);
+    opacity: 1;
+    font-weight: bold;
+}
+
+.mode-option.disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+    text-decoration: line-through;
 }
 
 /* In-Game Room Info */
@@ -93,3 +202,232 @@
 .modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
 .btn-confirm { background: var(--correct); color: white; padding: 8px 16px; border-radius: 5px; }
 .btn-cancel { background: var(--absent); color: white; padding: 8px 16px; border-radius: 5px; }
+
+/* --- SIDEBAR RESPONSIVE --- */
+.sidebar-toggle {
+    position: absolute;
+    top: 20px;
+    left: 100px; /* Juste à côté du bouton retour */
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--tile-bg);
+    color: var(--text-color);
+    border: 2px solid var(--tile-border);
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 1002; /* Au dessus de tout, même du lobby si besoin */
+    display: none; /* Caché par défaut (desktop) */
+    align-items: center;
+    justify-content: center;
+    font-size: 0.5rem;
+}
+
+/* Force display on mobile if not hidden */
+@media (max-width: 900px) {
+    .sidebar-toggle:not(.hidden) {
+        display: flex !important;
+    }
+}
+
+#ingame-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 220px;
+    background: var(--bg-color);
+    border-right: 1px solid var(--tile-border);
+    padding: 20px;
+    z-index: 1000; /* Au dessus de tout */
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--tile-border);
+}
+
+.room-code-pill {
+    background: var(--tile-bg);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-weight: bold;
+    border: 1px solid var(--tile-border);
+    font-size: 0.9rem;
+}
+
+#ingame-players-content {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ingame-player-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    background: var(--tile-bg);
+    border: 1px solid transparent;
+    transition: background 0.2s;
+}
+
+.ingame-player-card.is-me {
+    border-color: var(--correct);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.ingame-player-avatar {
+    width: 32px;
+    height: 32px;
+    background: var(--key-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.ingame-player-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.ingame-player-name {
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.ingame-player-status {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 900px) {
+    /* Mobile: Sidebar en bas (Bottom Sheet) */
+    #ingame-sidebar {
+        transform: translateY(100%); /* Caché en bas */
+        width: 100%;
+        height: auto;
+        max-height: 60vh; /* Max 60% de l'écran */
+        top: auto;
+        bottom: 0;
+        left: 0;
+        border-right: none;
+        border-top: 1px solid var(--tile-border);
+        border-radius: 20px 20px 0 0; /* Coins arrondis en haut */
+        padding: 20px;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
+    }
+
+    #ingame-sidebar.open {
+        transform: translateY(0);
+    }
+
+    /* Afficher le bouton toggle */
+    .sidebar-toggle {
+        display: flex;
+    }
+    
+    /* Force display on mobile if not hidden */
+    .sidebar-toggle:not(.hidden) {
+        display: flex !important;
+    }
+    
+    /* Reset game container margins */
+    .game-container {
+        margin-left: 0 !important;
+        margin-top: 0 !important;
+        width: 100% !important;
+        padding-bottom: 80px; /* Espace pour éviter que le clavier soit caché par le bouton toggle si en bas */
+        padding-top: 70px; /* Espace pour éviter l'overlap avec les boutons du haut */
+        justify-content: flex-start; /* Sur mobile, on aligne en haut pour éviter les soucis de centrage */
+    }
+
+    /* Overlay quand la sidebar est ouverte */
+    #sidebar-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 999;
+        display: none;
+        backdrop-filter: blur(2px);
+    }
+    #sidebar-overlay.visible { display: block; }
+}
+
+@media (min-width: 901px) {
+    /* Desktop: Sidebar en bas (Bottom Bar) */
+    #ingame-sidebar {
+        transform: none;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        min-height: 80px;
+        border-right: none;
+        border-top: 1px solid var(--tile-border);
+        flex-direction: row;
+        align-items: center;
+        padding: 10px 30px;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+    }
+
+    .sidebar-header {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+        border-right: 1px solid var(--tile-border);
+        padding-right: 20px;
+        margin-right: 20px;
+        height: 100%;
+    }
+
+    #ingame-players-content {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 20px;
+        overflow-y: hidden;
+        overflow-x: auto;
+    }
+
+    /* Cacher le bouton toggle */
+    .sidebar-toggle {
+        display: none !important;
+    }
+
+    /* Adjust game container */
+    .game-container {
+        margin-left: 0;
+        width: 100%;
+        padding-bottom: 120px; /* Espace pour la barre du bas */
+        justify-content: center;
+    }
+}
+
+/* Avatar Styles */
+.ingame-player-avatar-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--tile-border);
+    background: var(--tile-bg);
+}
+
+.ingame-player-card.is-me .ingame-player-avatar-img {
+    border-color: var(--start-tile);
+}

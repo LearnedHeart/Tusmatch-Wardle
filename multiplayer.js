@@ -7,6 +7,9 @@ let currentRoomCode = null;
 let isHost = false;
 let roomChannel = null;
 let playerCount = 0; // Track number of players for cleanup logic
+let currentAvatarIndex = 1;
+let selectedGameMode = 'libre';
+let lastRoundVictory = false; // Track local victory state for round end display
 
 // --- DOM ELEMENTS ---
 const lobbyOverlay = document.getElementById('lobby-overlay');
@@ -43,9 +46,51 @@ document.addEventListener('DOMContentLoaded', () => {
             if (code.length >= 3) joinGame(code);
             else alert("Code trop court !");
         });
+
+        // Avatar Carousel Logic
+        const avatarImg = document.querySelector('.avatar-preview-container img');
+        const btnPrevAvatar = document.getElementById('btn-prev-avatar');
+        const btnNextAvatar = document.getElementById('btn-next-avatar');
+
+        if (btnPrevAvatar && btnNextAvatar && avatarImg) {
+            btnPrevAvatar.addEventListener('click', () => {
+                currentAvatarIndex--;
+                if (currentAvatarIndex < 1) currentAvatarIndex = 12;
+                avatarImg.src = `assets/${currentAvatarIndex}.gif`;
+            });
+
+            btnNextAvatar.addEventListener('click', () => {
+                currentAvatarIndex++;
+                if (currentAvatarIndex > 12) currentAvatarIndex = 1;
+                avatarImg.src = `assets/${currentAvatarIndex}.gif`;
+            });
+        }
+
+        // Game Mode Selector Logic
+        const modeOptions = document.querySelectorAll('.mode-option');
+        modeOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                if (option.classList.contains('disabled')) return;
+                
+                // Remove selected from all
+                modeOptions.forEach(opt => opt.classList.remove('selected'));
+                // Add to clicked
+                option.classList.add('selected');
+                // Update variable
+                selectedGameMode = option.dataset.mode;
+            });
+        });
         
         // Event Listener pour le bouton "Lancer" (Host seulement)
         btnStartGame.addEventListener('click', launchGame);
+
+        // Event Listener pour le bouton "Retour" du lobby
+        const btnLobbyBack = document.getElementById('btn-lobby-back');
+        if (btnLobbyBack) {
+            btnLobbyBack.addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+        }
 
         // Event Listeners pour les boutons de partage (Lobby & In-Game)
         setupShareButtons('btn-share-link', 'btn-copy-code');
@@ -118,7 +163,13 @@ async function createGame() {
 
     try {
         const pseudoInput = document.getElementById('player-pseudo').value.trim();
-        const pseudo = pseudoInput || "Joueur " + Math.floor(Math.random() * 1000);
+        let pseudo = pseudoInput || "Joueur " + Math.floor(Math.random() * 1000);
+        
+        // Append Avatar ID
+        if (typeof currentAvatarIndex !== 'undefined') {
+            pseudo = `${pseudo}|${currentAvatarIndex}`;
+        }
+        
         myPseudo = pseudo;
         
         // 1. Générer un code unique (5 caractères)
@@ -191,7 +242,13 @@ async function joinGame(code) {
 
     try {
         const pseudoInput = document.getElementById('player-pseudo').value.trim();
-        const pseudo = pseudoInput || "Invité " + Math.floor(Math.random() * 1000);
+        let pseudo = pseudoInput || "Invité " + Math.floor(Math.random() * 1000);
+        
+        // Append Avatar ID
+        if (typeof currentAvatarIndex !== 'undefined') {
+            pseudo = `${pseudo}|${currentAvatarIndex}`;
+        }
+        
         myPseudo = pseudo;
 
         // 1. Trouver la partie
@@ -289,11 +346,18 @@ async function refreshPlayerList(partyId) {
 }
 
 function updatePlayerListUI(players) {
-    playersList.innerHTML = players.map(p => 
-        `<div style="padding: 5px; border-bottom: 1px solid #eee;">
-            ${p.pseudo} ${p.est_host ? '👑' : ''}
-        </div>`
-    ).join('');
+    playersList.innerHTML = players.map(p => {
+        const avatarUrl = getAvatarUrl(p.pseudo);
+        const displayName = getDisplayName(p.pseudo);
+        const hostIcon = p.est_host ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>` : '';
+        
+        return `
+        <div style="padding: 8px; border-bottom: 1px solid var(--tile-border); display: flex; align-items: center; gap: 10px;">
+            <img src="${avatarUrl}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--tile-border);">
+            <span>${displayName}</span>
+            ${hostIcon}
+        </div>`;
+    }).join('');
 }
 
 // --- REALTIME & JEU ---
@@ -308,10 +372,12 @@ function subscribeToRoom(partyId) {
                 refreshPlayerList(partyId);
             }
         })
-        // Écouter le lancement du jeu
+        // Écouter le lancement du jeu ou la fin de manche
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'parties', filter: `id=eq.${partyId}` }, (payload) => {
             if (payload.new.statut === 'en_cours') {
                 startGameMultiplayer(payload.new.mot_a_trouver);
+            } else if (payload.new.statut === 'fin_manche' && payload.new.fin_round_at) {
+                handleRoundEnd(payload.new.fin_round_at);
             }
         })
         // Écouter les essais des adversaires
@@ -356,6 +422,7 @@ async function launchGame() {
 }
 
 function startGameMultiplayer(mot) {
+    lastRoundVictory = false;
     lobbyOverlay.classList.add('hidden');
     // Lancer le jeu avec le mot imposé
     initGame(mot);
@@ -374,9 +441,16 @@ async function setupOpponentsUI() {
         
     const opponents = players.joueurs.filter(p => p.id !== myPlayerId);
     
+    // Set count class for dynamic sizing
+    opponentsContainer.className = ''; // Reset
+    opponentsContainer.classList.add(`count-${opponents.length}`);
+
     opponentsContainer.innerHTML = opponents.map(p => `
         <div class="opponent-card" id="opp-${p.id}">
-            <div class="opponent-name">${p.pseudo}</div>
+            <div class="opponent-header" style="display:flex; align-items:center; justify-content:center; gap:5px; margin-bottom:5px;">
+                 <img src="${getAvatarUrl(p.pseudo)}" style="width:20px; height:20px; border-radius:50%; object-fit:cover; border:1px solid var(--tile-border);">
+                 <div class="opponent-name" style="margin-bottom:0;">${getDisplayName(p.pseudo)}</div>
+            </div>
             <div class="mini-grid" id="grid-${p.id}" style="--mini-cols: ${wordLength}">
                 ${Array(6).fill(0).map(() => `
                     <div class="mini-row">
@@ -534,33 +608,129 @@ function showTypingIndicator(payload) {
 
 // --- RESTART LOGIC ---
 
-window.triggerMultiplayerRestart = async function() {
-    if (!isHost) {
-        alert("Seul l'hôte peut relancer la partie !");
-        return;
-    }
+// --- GAME END & RESTART LOGIC ---
+
+window.handleMultiplayerEnd = async function(victory, word) {
+    if (!myPlayerId || !currentRoomCode) return;
+
+    lastRoundVictory = victory;
+
+    // 1. Update my status in DB
+    const updates = {
+        a_fini: true
+    };
     
+    if (victory) {
+        // Increment victories
+        const { data: me } = await supabaseClient.from('joueurs').select('victoires, score').eq('id', myPlayerId).single();
+        if (me) {
+            updates.victoires = (me.victoires || 0) + 1;
+            updates.score = (me.score || 0) + 10; // +10 pts for win
+        }
+    }
+
+    await supabaseClient
+        .from('joueurs')
+        .update(updates)
+        .eq('id', myPlayerId);
+
+    // 2. Trigger Round End Sequence (Countdown) if I won
+    if (victory) {
+        const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
+        if (party) {
+            // Set fin_round_at to 5 seconds from now
+            const finTime = new Date(Date.now() + 5000).toISOString();
+            await supabaseClient
+                .from('parties')
+                .update({ 
+                    statut: 'fin_manche',
+                    fin_round_at: finTime
+                })
+                .eq('id', party.id);
+            
+            // Show End Screen immediately for winner
+            const { data: players } = await supabaseClient.from('joueurs').select('*').eq('partie_id', party.id);
+            if (typeof showEndScreen === 'function') {
+                showEndScreen(true, word, players);
+            }
+        }
+    } else {
+        // If I lost, check if everyone else has finished
+        const { data: party } = await supabaseClient.from('parties').select('id, statut').eq('code', currentRoomCode).single();
+        if (party) {
+             const { data: players } = await supabaseClient
+                .from('joueurs')
+                .select('*')
+                .eq('partie_id', party.id);
+             
+             const allFinished = players.every(p => p.a_fini);
+             const isRoundOver = party.statut === 'fin_manche';
+
+             if (allFinished && !isRoundOver) {
+                // Everyone finished but no one triggered win (Everyone Lost case)
+                // Trigger end immediately
+                const finTime = new Date().toISOString();
+                await supabaseClient
+                    .from('parties')
+                    .update({ 
+                        statut: 'fin_manche',
+                        fin_round_at: finTime
+                    })
+                    .eq('id', party.id);
+                
+                // Show End Screen with word
+                if (typeof showEndScreen === 'function') {
+                    showEndScreen(false, word, players);
+                }
+             } else if (isRoundOver) {
+                // Round already over, show everything
+                if (typeof showEndScreen === 'function') {
+                    showEndScreen(false, word, players);
+                }
+             } else {
+                // Others still playing -> WAIT and HIDE WORD
+                if (typeof showEndScreen === 'function') {
+                    showEndScreen(false, null, players); // Pass null to hide word
+                }
+             }
+        }
+    }
+};
+
+window.triggerMultiplayerRestart = async function() {
+    // This function is now called automatically by the host client when timer ends
+    // But we keep the check just in case
+    if (!isHost) return; 
+    
+    const btn = document.getElementById('restartBtn');
+    if(btn) btn.textContent = "Lancement...";
+
     // Choisir un nouveau mot
-    if (COMMON_WORDS.length === 0) await loadDictionaries();
+    if (typeof COMMON_WORDS === 'undefined' || COMMON_WORDS.length === 0) await loadDictionaries();
     const mot = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
     
     // Retrouver l'ID de la partie
     const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
     
     if (party) {
-        // 1. Supprimer les anciens essais
+        // 1. Reset all players status
+        await supabaseClient
+            .from('joueurs')
+            .update({ a_fini: false })
+            .eq('partie_id', party.id);
+
+        // 2. Supprimer les anciens essais
         await supabaseClient.from('essais').delete().eq('partie_id', party.id);
         
-        // 2. Mettre à jour la partie (ce qui va trigger le restart chez tout le monde)
+        // 3. Mettre à jour la partie (ce qui va trigger le restart chez tout le monde)
         await supabaseClient
             .from('parties')
             .update({ 
                 mot_a_trouver: mot,
-                statut: 'en_cours', // Force update event
+                statut: 'en_cours', 
                 fin_round_at: null 
             })
             .eq('id', party.id);
-    sessionStorage.clear(); // Clear session on explicit leave
     }
 };
 
@@ -625,20 +795,42 @@ function updateIngamePlayerList(players) {
         codeDisplay.textContent = currentRoomCode;
     }
 
-    list.innerHTML = players.map(p => {
+    // Sort by score descending for ranking
+    const sortedPlayers = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    list.innerHTML = sortedPlayers.map((p, index) => {
         const isMe = p.id === myPlayerId;
         const isHost = p.est_host;
-        const avatarLetter = p.pseudo ? p.pseudo.charAt(0).toUpperCase() : '?';
+        const avatarUrl = getAvatarUrl(p.pseudo);
+        const displayName = getDisplayName(p.pseudo);
+        
+        const hostIcon = isHost ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>` : '';
+        
+        const statusIcon = p.a_fini 
+            ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` 
+            : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>`;
+            
+        const score = p.score || 0;
+        
+        // Ranking Logic
+        const rank = index + 1;
+        let rankColor = '#666'; // Default Grey
+        if (rank === 1) rankColor = '#FFD700'; // Gold
+        if (rank === 2) rankColor = '#C0C0C0'; // Silver
+        if (rank === 3) rankColor = '#CD7F32'; // Bronze
         
         return `
             <div class="ingame-player-card ${isMe ? 'is-me' : ''}">
-                <div class="ingame-player-avatar">${avatarLetter}</div>
+                <div style="color:${rankColor}; font-weight:bold; margin-right:8px; min-width:20px; font-size:0.9rem;">#${rank}</div>
+                <img src="${avatarUrl}" class="ingame-player-avatar-img">
                 <div class="ingame-player-info">
                     <div class="ingame-player-name">
-                        ${p.pseudo} ${isHost ? '👑' : ''}
+                        ${displayName} ${hostIcon}
                     </div>
                     <div class="ingame-player-status">
-                        ${isMe ? '(Moi)' : ''}
+                        ${isMe ? '<span style="font-size:0.8em; opacity:0.7; margin-right:4px;">(Moi)</span>' : ''} 
+                        ${statusIcon} 
+                        <span style="margin-left:4px; font-weight:bold;">${score}pts</span>
                     </div>
                 </div>
             </div>
@@ -718,12 +910,24 @@ window.addEventListener('beforeunload', () => {
 // Override startGameMultiplayer to show the list
 const originalStartGameMultiplayer = window.startGameMultiplayer;
 window.startGameMultiplayer = function(mot) {
+    // Hide End Modal if open
+    const endModal = document.getElementById('endModal');
+    if (endModal) endModal.classList.add('hidden');
+
+    // Clear local session guesses for this room to avoid reloading old game state
+    if (currentRoomCode) {
+        sessionStorage.removeItem('tusmatch_guesses_' + currentRoomCode);
+    }
+
     lobbyOverlay.classList.add('hidden');
     initGame(mot);
     setupOpponentsUI();
     
     // Show Sidebar
     document.getElementById('ingame-sidebar').classList.remove('hidden');
+    // Show Toggle Button (remove hidden class so CSS media queries apply)
+    const btnToggle = document.getElementById('btn-toggle-sidebar');
+    if (btnToggle) btnToggle.classList.remove('hidden');
     
     // Update list immediately
     if (currentRoomCode) {
@@ -758,6 +962,25 @@ document.addEventListener('DOMContentLoaded', () => {
     setupShareButtons('sidebar-share-link', 'sidebar-copy-code');
     // Also keep lobby buttons working
     setupShareButtons('btn-share-link', 'btn-copy-code');
+
+    // Sidebar Toggle Logic
+    const btnToggle = document.getElementById('btn-toggle-sidebar');
+    const sidebar = document.getElementById('ingame-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (btnToggle && sidebar) {
+        btnToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('visible');
+        });
+    }
+
+    if (overlay) {
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('visible');
+        });
+    }
 });
 
 function openLeaveModal() {
@@ -814,8 +1037,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Codes réalistes (Alphanumérique 5 chars)
         const codes = ['XJ9KZ', 'A7B2P', 'K9L1M', 'P4R5T', '9X2Y1', 'M3G4L', 'Q8W7E', 'Z1X2C'];
         
-        animateInputPlaceholder(pseudoInput, pseudos, 'Ex: ');
-        animateInputPlaceholder(codeInput, codes, 'Ex: ');
+        animateInputPlaceholder(pseudoInput, pseudos, '');
+        animateInputPlaceholder(codeInput, codes, '');
     }
 });
 
@@ -956,6 +1179,10 @@ async function rejoinSession(code, playerId) {
             const sidebar = document.getElementById('ingame-sidebar');
             if (sidebar) sidebar.classList.remove('hidden');
             
+            // Show Toggle Button
+            const btnToggle = document.getElementById('btn-toggle-sidebar');
+            if (btnToggle) btnToggle.classList.remove('hidden');
+            
             // Refresh player list
             refreshPlayerList(party.id);
         }
@@ -965,4 +1192,88 @@ async function rejoinSession(code, playerId) {
         sessionStorage.clear();
         if (lobbyOverlay) lobbyOverlay.classList.remove('hidden');
     }
+}
+
+// --- AVATAR HELPER ---
+function getDisplayName(pseudo) {
+    if (!pseudo) return "Joueur";
+    return pseudo.split('|')[0];
+}
+
+window.getAvatarUrl = function(pseudoString) {
+    if (!pseudoString) return 'assets/1.gif';
+    
+    // Check for composite pseudo "Name|AvatarID"
+    if (pseudoString.includes('|')) {
+        const parts = pseudoString.split('|');
+        const avatarId = parseInt(parts[1]);
+        if (!isNaN(avatarId) && avatarId >= 1 && avatarId <= 12) {
+            return `assets/${avatarId}.gif`;
+        }
+        // Fallback to name part if ID is invalid
+        pseudoString = parts[0];
+    }
+
+    // Simple hash to get a consistent number between 1 and 12
+    let hash = 0;
+    for (let i = 0; i < pseudoString.length; i++) {
+        hash = pseudoString.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const num = (Math.abs(hash) % 12) + 1;
+    return `assets/${num}.gif`;
+};
+
+const getAvatarUrl = window.getAvatarUrl;
+
+// --- ROUND END TIMER LOGIC ---
+
+let roundTimerInterval = null;
+
+async function handleRoundEnd(finRoundAt) {
+    // 1. Fetch players for scoreboard
+    const { data: party } = await supabaseClient.from('parties').select('id, mot_a_trouver').eq('code', currentRoomCode).single();
+    if (!party) return;
+
+    const { data: players } = await supabaseClient
+        .from('joueurs')
+        .select('*')
+        .eq('partie_id', party.id);
+
+    // 2. Show End Screen (Force show even if playing)
+    if (typeof showEndScreen === 'function') {
+        // Use locally tracked victory state, fallback to false if not set
+        // This ensures that if I finished and lost, I don't see a victory screen
+        // just because a_fini is true.
+        const victory = lastRoundVictory; 
+        
+        showEndScreen(victory, party.mot_a_trouver, players);
+    }
+
+    // 3. Start Countdown
+    const btn = document.getElementById('restartBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('btn-disabled');
+    }
+
+    if (roundTimerInterval) clearInterval(roundTimerInterval);
+
+    roundTimerInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const end = new Date(finRoundAt).getTime();
+        const diff = end - now;
+
+        if (diff <= 0) {
+            clearInterval(roundTimerInterval);
+            if (btn) btn.textContent = "Lancement...";
+            
+            // Trigger restart if Host
+            if (isHost) {
+                triggerMultiplayerRestart();
+            }
+        } else {
+            const seconds = Math.ceil(diff / 1000);
+            if (btn) btn.textContent = `Prochaine manche dans ${seconds}s...`;
+        }
+    }, 1000);
 }

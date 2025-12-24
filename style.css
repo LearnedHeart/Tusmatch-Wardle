@@ -100,6 +100,28 @@ button {
 }
 .back-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.06); }
 
+/* Bouton Retour Lobby */
+.lobby-back-btn {
+    position: absolute;
+    left: 20px;
+    top: 20px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: var(--tile-bg);
+    color: var(--text-color);
+    border: 2px solid var(--tile-border);
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    z-index: 1001;
+}
+
+.lobby-back-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
 /* --- PAGE D'ACCUEIL --- */
 .home-container {
     text-align: center;
@@ -132,17 +154,45 @@ h1 { font-size: 4rem; margin-bottom: 2rem; letter-spacing: 2px; }
 .btn-secondary { background: var(--present); }
 .btn-tertiary { background: var(--absent); }
 
+/* Bouton Désactivé (Coming Soon) */
+.btn-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    position: relative;
+    filter: grayscale(0.3);
+}
+
+.btn-disabled:hover {
+    transform: none !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+}
+
+.coming-soon-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgb(0, 0, 0);
+    backdrop-filter: blur(10px);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
 /* --- JEU (GRID) --- */
 .game-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 50px;
+    gap: 15px; /* Reduced from 50px to fit everything on screen */
     height: 100%;
     width: 100%;
     /* max-width: 500px; Removed to allow wider grids for long words */
-    padding: 20px;
+    padding: 10px;
     margin: 0 auto;
 }
 
@@ -377,7 +427,7 @@ body.claire .key.absent {
 }
 
 /* Victory/Defeat specific styles */
-.modal.victory h2 { color: var(--correct); }
+.modal.victory h2 { color: #6aaa64; } /* Force Green */
 .modal.defeat h2 { color: var(--present); } /* Or red if preferred */
 
 

@@ -29,31 +29,51 @@
 
     <!-- LOBBY MULTIJOUEUR -->
     <div id="lobby-overlay" class="hidden">
+        <!-- Bouton Retour Lobby -->
+        <button id="btn-lobby-back" class="lobby-back-btn">Retour</button>
+        
         <div id="lobby-content" style="display: flex; flex-direction: column; gap: 20px; align-items: center; width: 100%; max-width: 400px;">
             
             <!-- Box 1: Identity -->
             <div class="lobby-box" style="width: 100%;">
                 <h2>Ton Profil</h2>
+                
+                <!-- Avatar Carousel -->
+                <div class="avatar-selector">
+                    <button id="btn-prev-avatar" class="avatar-nav-btn">‹</button>
+                    <div class="avatar-preview-container">
+                        <img id="avatar-preview" src="assets/1.gif" alt="Avatar">
+                    </div>
+                    <button id="btn-next-avatar" class="avatar-nav-btn">›</button>
+                </div>
+
                 <div style="width: 100%; margin-top: 10px;">
-                    <input type="text" id="player-pseudo" class="lobby-input" placeholder="Ex: COOLKID67" maxlength="12">
+                    <input type="text" id="player-pseudo" class="lobby-input" placeholder="COOLKID67" maxlength="12">
                 </div>
             </div>
 
-            <!-- Box 2: Actions -->
-            <div class="lobby-box" id="lobby-start" style="width: 100%;">
-                <h2>Jouer</h2>
+            <!-- Box 2: Actions Wrapper -->
+            <div id="lobby-start" style="width: 100%; display: flex; flex-direction: column; gap: 20px;">
                 
-                <div style="width: 100%; margin-top: 15px;">
-                    <div class="lobby-section-title">Créer une partie</div>
+                <!-- Create Game Box -->
+                <div class="lobby-box" style="width: 100%;">
+                    <h2>Créer une partie</h2>
+                    
+                    <!-- Game Mode Selector -->
+                    <div class="game-mode-selector" style="margin-bottom: 10px;">
+                        <div class="mode-option selected" data-mode="preums">Preums</div>
+                        <div class="mode-option" data-mode="libre">Libre</div>
+                        <div class="mode-option" data-mode="temps">Temps</div>
+                    </div>
+
                     <button id="btn-create-game" class="lobby-btn">Nouvelle Salle</button>
                 </div>
 
-                <div class="lobby-separator"></div>
-
-                <div style="width: 100%;">
-                    <div class="lobby-section-title">Rejoindre une partie</div>
+                <!-- Join Game Box -->
+                <div class="lobby-box" style="width: 100%;">
+                    <h2>Rejoindre une partie</h2>
                     <div style="display: flex; gap: 10px;">
-                        <input type="text" id="lobby-code-input" class="lobby-input" style="margin: 0; flex: 1;" placeholder="Ex: ABCDE" maxlength="5">
+                        <input type="text" id="lobby-code-input" class="lobby-input" style="margin: 0; flex: 1;" placeholder="ABCDE" maxlength="5">
                         <button id="btn-join-game" class="lobby-btn" style="margin: 0; width: auto; min-width: 100px;">Go</button>
                     </div>
                 </div>
@@ -65,8 +85,14 @@
             <div style="font-size: 2rem; letter-spacing: 5px; margin: 20px 0; font-weight: bold;" id="display-room-code">----</div>
             
             <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
-                <button id="btn-share-link" class="lobby-btn" style="background: var(--present); font-size: 0.9rem; flex: 2;">🔗 Lien</button>
-                <button id="btn-copy-code" class="lobby-btn" style="background: var(--key-bg); font-size: 0.9rem; flex: 1;">📋 Code</button>
+                <button id="btn-share-link" class="lobby-btn" style="background: var(--present); font-size: 0.9rem; flex: 2; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                    Lien
+                </button>
+                <button id="btn-copy-code" class="lobby-btn" style="background: var(--key-bg); font-size: 0.9rem; flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    Code
+                </button>
             </div>
 
             <p>Partage ce code avec tes amis</p>
@@ -79,6 +105,14 @@
     </div>
 
     <button id="btn-leave-game" class="back-btn">Retour</button>
+    <button id="btn-toggle-sidebar" class="sidebar-toggle hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+    </button>
     <button id="themeToggle" class="theme-switch">Thème</button>
     <button id="devModeBtn" style="position: absolute; bottom: 10px; right: 10px; opacity: 0.3; font-size: 10px;">Dev</button>
     
@@ -86,6 +120,7 @@
 
 
     <!-- In-Game Sidebar (Room Info + Players) -->
+    <div id="sidebar-overlay"></div>
     <div id="ingame-sidebar" class="hidden">
         <div class="sidebar-header">
             <div class="room-code-box">

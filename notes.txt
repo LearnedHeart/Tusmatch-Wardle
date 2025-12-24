@@ -13,15 +13,20 @@ Match privés :
     Destructions essais VVV
     Enlever fentre modale VVV
 
+
+
+
     tablau score et wins (sur le coté pas fenêtre) XXX
     recommencer partie reste dnas la meme partie XXX
+
     Timer (on off) XXX
     quand l'un a fait une ligne, l'autre a X temps pour la faire aussi XXX
     système de points par lignes et de gagnant XXX
     
+
     inviter un joueur, garde la même partie + un joueur VVVV
+    5 players max XXX. 
     
-    3 players max XXX. 
 
 
 Match public : commes matchs privés mais nouveau groupe a chaque fois 

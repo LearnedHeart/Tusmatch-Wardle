@@ -19,10 +19,10 @@ if (typeof createClient !== 'undefined') {
 let wordLength = 5;
 const MAX_GUESSES = 6;
 let DICTIONARY = []; // Mots valides pour les essais (mots.txt)
-let COMMON_WORDS = []; // Mots cibles possibles (mots_courants.txt)
+window.COMMON_WORDS = []; // Mots cibles possibles (mots_courants.txt)
 
 // Variables globales
-let targetWord = "";
+window.targetWord = "";
 let currentGuess = [];
 let guesses = [];
 let isGameOver = false;
@@ -47,7 +47,7 @@ async function loadDictionaries() {
         // Charger les mots courants (mots cibles)
         const responseCommon = await fetch('mots_courants.txt');
         const textCommon = await responseCommon.text();
-        COMMON_WORDS = textCommon.split('\n')
+        window.COMMON_WORDS = textCommon.split('\n')
             .map(line => {
                 let clean = line.trim();
                 if (clean.endsWith(',')) clean = clean.slice(0, -1);
@@ -357,11 +357,21 @@ function submitGuess() {
     
     // Vérification Victoire/Défaite après l'animation
     setTimeout(() => {
+        const isMultiplayer = new URLSearchParams(window.location.search).get('mode') === 'private';
+
         if (guessString === targetWord) {
-            showEndScreen(true, targetWord);
+            if (isMultiplayer && window.handleMultiplayerEnd) {
+                window.handleMultiplayerEnd(true, targetWord);
+            } else {
+                showEndScreen(true, targetWord);
+            }
             isGameOver = true;
         } else if (guesses.length === MAX_GUESSES) {
-            showEndScreen(false, targetWord);
+            if (isMultiplayer && window.handleMultiplayerEnd) {
+                window.handleMultiplayerEnd(false, targetWord);
+            } else {
+                showEndScreen(false, targetWord);
+            }
             isGameOver = true;
         } else {
             // Copier les lettres correctes (sans style) vers la ligne suivante
@@ -397,20 +407,81 @@ const wordDisplay = document.getElementById('wordDisplay');
 const restartBtn = document.getElementById('restartBtn');
 const shareBtn = document.getElementById('shareBtn');
 
-function showEndScreen(victory, word) {
+function showEndScreen(victory, word, scores = null) {
     endModal.classList.remove('hidden');
     endModal.classList.remove('victory', 'defeat');
     endModal.classList.add(victory ? 'victory' : 'defeat');
 
-    if (victory) {
-        endTitle.textContent = "Victoire !";
-        endMessage.textContent = "Bien joué, tu as trouvé le mot !";
-        wordDisplay.style.display = 'none';
-    } else {
-        endTitle.textContent = "Défaite...";
-        endMessage.textContent = "Dommage, le mot était :";
+    // Reset content
+    endTitle.textContent = "";
+    endMessage.innerHTML = ""; 
+    wordDisplay.style.display = 'none';
+    
+    // Multiplayer Mode
+    if (scores) {
+        // WAITING STATE (Word hidden)
+        if (word === null) {
+            endTitle.textContent = "Terminé !";
+            endMessage.innerHTML = "En attente des autres joueurs...<br>Le résultat s'affichera bientôt.";
+            wordDisplay.style.display = 'none';
+            
+            // Hide button while waiting
+            restartBtn.style.display = 'none';
+            return;
+        }
+
+        // FINAL STATE
+        restartBtn.style.display = 'block'; // Ensure visible
+        endTitle.textContent = "Manche terminée";
         wordDisplay.textContent = word;
         wordDisplay.style.display = 'block';
+        
+        // Build Scoreboard
+        let scoreHtml = '<div class="scoreboard" style="margin-top: 20px; text-align: left; max-height: 200px; overflow-y: auto;">';
+        scores.sort((a, b) => b.score - a.score).forEach(p => {
+            const displayName = p.pseudo.split('|')[0];
+            const avatarUrl = window.getAvatarUrl ? window.getAvatarUrl(p.pseudo) : 'assets/1.gif';
+            scoreHtml += `
+                <div style="display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid var(--tile-border); align-items: center;">
+                    <span style="display: flex; align-items: center; gap: 10px;">
+                        <img src="${avatarUrl}" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid var(--tile-border);">
+                        ${displayName} ${p.est_host ? '👑' : ''}
+                        ${p.id === window.myPlayerId ? '<span style="font-size:0.8em; opacity:0.7;">(Moi)</span>' : ''}
+                    </span>
+                    <strong>${p.score} pts</strong>
+                </div>
+            `;
+        });
+        scoreHtml += '</div>';
+        
+        endMessage.innerHTML = `Le mot était : <br>${scoreHtml}`;
+        
+        // Update Button
+        if (window.isHost) {
+            restartBtn.textContent = "Suite (Lancer la manche)";
+            restartBtn.disabled = false;
+            restartBtn.classList.remove('btn-disabled');
+        } else {
+            restartBtn.textContent = "En attente de l'hôte...";
+            restartBtn.disabled = true;
+            restartBtn.classList.add('btn-disabled');
+        }
+    } else {
+        // Single Player Mode
+        restartBtn.textContent = "Rejouer";
+        restartBtn.disabled = false;
+        restartBtn.classList.remove('btn-disabled');
+        
+        if (victory) {
+            endTitle.textContent = "Victoire !";
+            endMessage.textContent = "Bien joué, tu as trouvé le mot !";
+            wordDisplay.style.display = 'none';
+        } else {
+            endTitle.textContent = "Défaite...";
+            endMessage.textContent = "Dommage, le mot était :";
+            wordDisplay.textContent = word;
+            wordDisplay.style.display = 'block';
+        }
     }
 }
 
