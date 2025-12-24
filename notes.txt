@@ -1,22 +1,27 @@
 
 Trier mots proposé (!= mots dict) VVVV
 
-Système serveur mot du jour (réinitiliaser tt les 24h)
-hugginface ? 
 
 Match privés : 
 
-    code de connexion 
-    les autres rejoignent 
+    code de connexion VVV
+    les autres rejoignent  VVV
     Tableau princpal et visu des joueurs sans lettres 
-    Pseudos 
-    Timer (on off)
-    quand l'un a fiat une ligne, l'autre a X temps pour la faire aussi
-    système de points par lignes et de gagnant 
-    recommencer partie reste dnas la meme partie 
-    inviter un joueur, garde la me^me partie + un joueur 
-    tablau score et wins 
-    3 players max
+        écriture et bug longueur
+    Pseudos VVV
+    Destructions des joueurs si il ferme la page (équivalent a retour) VVV
+    Destructions essais VVV
+    Enlever fentre modale VVV
+
+    tablau score et wins (sur le coté pas fenêtre) XXX
+    recommencer partie reste dnas la meme partie XXX
+    Timer (on off) XXX
+    quand l'un a fait une ligne, l'autre a X temps pour la faire aussi XXX
+    système de points par lignes et de gagnant XXX
+    
+    inviter un joueur, garde la même partie + un joueur VVVV
+    
+    3 players max XXX. 
 
 
 Match public : commes matchs privés mais nouveau groupe a chaque fois 

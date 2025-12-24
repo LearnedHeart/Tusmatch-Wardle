@@ -350,6 +350,11 @@ function submitGuess() {
     const guessString = currentGuess.join("");
     guesses.push(guessString);
     
+    // Session Save Hook
+    if (typeof window.saveGuessesToSession === 'function') {
+        window.saveGuessesToSession();
+    }
+    
     // Vérification Victoire/Défaite après l'animation
     setTimeout(() => {
         if (guessString === targetWord) {
@@ -456,6 +461,91 @@ document.getElementById('devModeBtn').addEventListener('click', () => {
     }
 });
 
+
+// --- SESSION RESTORATION HELPERS ---
+
+window.saveGuessesToSession = function() {
+    if (typeof currentRoomCode !== 'undefined' && currentRoomCode) {
+        sessionStorage.setItem('tusmatch_guesses_' + currentRoomCode, JSON.stringify(guesses));
+    }
+};
+
+window.restoreGuess = function(guessWord) {
+    if (!targetWord) return;
+    
+    // Set current guess
+    currentGuess = guessWord.split("");
+    const guessParts = [...currentGuess];
+    const targetParts = targetWord.split("");
+    const row = grid.children[guesses.length];
+    
+    const result = Array(wordLength).fill("absent");
+    
+    // 1. Verts
+    for (let i = 0; i < wordLength; i++) {
+        if (guessParts[i] === targetParts[i]) {
+            result[i] = "correct";
+            targetParts[i] = null;
+            guessParts[i] = null;
+        }
+    }
+    
+    // 2. Jaunes
+    for (let i = 0; i < wordLength; i++) {
+        if (guessParts[i] && targetParts.includes(guessParts[i])) {
+            result[i] = "present";
+            targetParts[targetParts.indexOf(guessParts[i])] = null;
+        }
+    }
+
+    // UI Update (Instant)
+    result.forEach((status, i) => {
+        const tile = row.children[i];
+        tile.textContent = currentGuess[i];
+        tile.classList.add(status);
+        tile.classList.add("flip"); 
+        
+        // Keyboard
+        const key = document.querySelector(`.key[data-key="${currentGuess[i]}"]`);
+        if (key) {
+            const oldClass = key.classList.contains("correct") ? "correct" : 
+                             key.classList.contains("present") ? "present" : "absent";
+            if (status === "correct") key.className = "key correct";
+            else if (status === "present" && oldClass !== "correct") key.className = "key present";
+            else if (status === "absent" && !key.classList.contains("correct") && !key.classList.contains("present")) key.classList.add("absent");
+        }
+    });
+
+    guesses.push(guessWord);
+    
+    if (guessWord === targetWord) {
+        isGameOver = true;
+    } else if (guesses.length >= MAX_GUESSES) {
+        isGameOver = true;
+    }
+    
+    currentGuess = [];
+    updateHintsFromHistory();
+    // Prepare next row
+    if (!isGameOver) {
+        currentGuess = Array(wordLength).fill("");
+        if (currentHints[0]) {
+            currentGuess[0] = currentHints[0];
+        }
+        updateGrid();
+    }
+};
+
+window.loadGuessesFromSession = function() {
+    if (typeof currentRoomCode !== 'undefined' && currentRoomCode) {
+        const stored = sessionStorage.getItem('tusmatch_guesses_' + currentRoomCode);
+        if (stored) {
+            const savedGuesses = JSON.parse(stored);
+            // Clear current grid first if needed, but usually we call this on fresh init
+            savedGuesses.forEach(g => window.restoreGuess(g));
+        }
+    }
+};
 // Lancer le jeu (sauf si mode privé, on attend le lobby)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('mode') !== 'private') {

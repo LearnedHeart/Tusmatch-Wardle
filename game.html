@@ -6,110 +6,17 @@
     <title>Tusmatch - Jeu</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
-    <style>
-        /* Styles spécifiques au multijoueur */
-        #lobby-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-color); z-index: 100;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            padding: 20px;
-        }
-        .lobby-box {
-            background: var(--tile-bg); padding: 30px; border-radius: 10px;
-            text-align: center; max-width: 400px; width: 100%;
-            border: 1px solid var(--tile-border);
-        }
-        .lobby-btn {
-            display: block; width: 100%; padding: 12px; margin: 10px 0;
-            background: var(--key-bg); color: var(--text-color);
-            border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
-            font-size: 1rem;
-        }
-        .lobby-btn:hover { opacity: 0.9; }
-        .lobby-input {
-            width: 100%; padding: 12px; margin: 10px 0;
-            background: var(--bg-color); border: 1px solid var(--tile-border);
-            color: var(--text-color); border-radius: 5px; font-size: 1rem;
-            text-transform: uppercase; text-align: center;
-        }
-        #opponents-container {
-            display: flex; gap: 10px; justify-content: center; margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .opponent-card {
-            background: var(--tile-bg); padding: 10px; border-radius: 8px;
-            border: 1px solid var(--tile-border); width: 160px;
-        }
-        .opponent-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; text-align: center; }
-        .mini-grid { display: grid; gap: 2px; }
-        .mini-row { display: grid; grid-template-columns: repeat(var(--mini-cols, 5), 1fr); gap: 2px; height: 15px; }
-        .mini-tile { 
-            width: 100%; height: 100%; 
-            background: var(--tile-bg); 
-            border: 1px solid var(--tile-border); /* Ajout bordure pour visibilité */
-            border-radius: 2px; 
-        }
-        .mini-tile.correct { background: var(--correct); border-color: var(--correct); }
-        .mini-tile.present { background: var(--present); border-color: var(--present); }
-        .mini-tile.absent { background: var(--absent); border-color: var(--absent); }
-        .mini-tile.filled { background: var(--filled-tile); border-color: var(--filled-tile); }
-        .typing-indicator { font-size: 0.7rem; color: var(--active-border); height: 1rem; text-align: center; }
-        
-        .hidden { display: none !important; }
-        
-        /* Séparateur Lobby */
-        .lobby-separator {
-            width: 100%; height: 1px; background: var(--tile-border);
-            margin: 20px 0; opacity: 0.5;
-        }
-        .lobby-section-title {
-            font-size: 0.9rem; font-weight: bold; margin-bottom: 10px; 
-            text-align: left; width: 100%; opacity: 0.8;
-        }
-
-        /* In-Game Room Info */
-        #room-info-bar {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 10px; align-items: center;
-            background: var(--tile-bg); padding: 5px 15px; border-radius: 20px;
-            border: 1px solid var(--tile-border);
-            z-index: 50;
-        }
-        .room-code-display { font-weight: bold; letter-spacing: 2px; margin-right: 10px; }
-        .icon-btn {
-            background: none; border: none; cursor: pointer; color: var(--text-color);
-            padding: 5px; border-radius: 5px; display: flex; align-items: center;
-        }
-        .icon-btn:hover { background: var(--tile-border); }
-        
-        /* Avatar & Crown */
-        .player-header { display: flex; align-items: center; justify-content: center; gap: 5px; margin-bottom: 5px; }
-        .avatar-icon { width: 20px; height: 20px; fill: var(--text-color); }
-        .crown-icon { font-size: 1rem; }
-
-        /* Custom Modal */
-        .custom-modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); z-index: 200;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .custom-modal-box {
-            background: var(--bg-color); padding: 25px; border-radius: 10px;
-            border: 1px solid var(--tile-border); text-align: center;
-            max-width: 300px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
-        .modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
-        .btn-confirm { background: var(--correct); color: white; padding: 8px 16px; border-radius: 5px; }
-        .btn-cancel { background: var(--absent); color: white; padding: 8px 16px; border-radius: 5px; }
-
-    </style>
+    <link rel="stylesheet" href="style_multiplayer.css">
+   
 </head>
 <body>
+
+
     <!-- Custom Leave Modal -->
     <div id="leave-modal" class="custom-modal-overlay hidden">
         <div class="custom-modal-box">
             <h3>Quitter la partie ?</h3>
-            <p style="margin-top: 10px; opacity: 0.8;">Tu ne pourras perdra cette manche si elle est en cours.</p>
+            <p style="margin-top: 10px; opacity: 0.8;">Tu perdras cette manche.</p>
             <div class="modal-actions">
                 <button id="confirm-leave" class="btn-confirm">Quitter</button>
                 <button id="cancel-leave" class="btn-cancel">Annuler</button>
@@ -122,29 +29,33 @@
 
     <!-- LOBBY MULTIJOUEUR -->
     <div id="lobby-overlay" class="hidden">
-        <div class="lobby-box" id="lobby-start">
-            <h2>Match Privé</h2>
-            <p style="margin-bottom: 20px; opacity: 0.7;">Crée une salle ou rejoins tes amis</p>
+        <div id="lobby-content" style="display: flex; flex-direction: column; gap: 20px; align-items: center; width: 100%; max-width: 400px;">
             
-            <div style="width: 100%; margin-bottom: 10px;">
-                <label for="player-pseudo" class="lobby-section-title">Ton Pseudo</label>
-                <input type="text" id="player-pseudo" class="lobby-input" placeholder="Choisis un pseudo..." maxlength="12">
+            <!-- Box 1: Identity -->
+            <div class="lobby-box" style="width: 100%;">
+                <h2>Ton Profil</h2>
+                <div style="width: 100%; margin-top: 10px;">
+                    <input type="text" id="player-pseudo" class="lobby-input" placeholder="Ex: COOLKID67" maxlength="12">
+                </div>
             </div>
 
-            <div class="lobby-separator"></div>
+            <!-- Box 2: Actions -->
+            <div class="lobby-box" id="lobby-start" style="width: 100%;">
+                <h2>Jouer</h2>
+                
+                <div style="width: 100%; margin-top: 15px;">
+                    <div class="lobby-section-title">Créer une partie</div>
+                    <button id="btn-create-game" class="lobby-btn">Nouvelle Salle</button>
+                </div>
 
-            <div style="width: 100%;">
-                <div class="lobby-section-title">Créer une partie</div>
-                <button id="btn-create-game" class="lobby-btn">Nouvelle Salle</button>
-            </div>
+                <div class="lobby-separator"></div>
 
-            <div style="margin: 15px 0; font-size: 0.8rem; opacity: 0.5;">— OU —</div>
-
-            <div style="width: 100%;">
-                <div class="lobby-section-title">Rejoindre une partie</div>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="lobby-code-input" class="lobby-input" style="margin: 0; flex: 1;" placeholder="Code (ex: ABCDE)" maxlength="5">
-                    <button id="btn-join-game" class="lobby-btn" style="margin: 0; width: auto; min-width: 100px;">Go</button>
+                <div style="width: 100%;">
+                    <div class="lobby-section-title">Rejoindre une partie</div>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="lobby-code-input" class="lobby-input" style="margin: 0; flex: 1;" placeholder="Ex: ABCDE" maxlength="5">
+                        <button id="btn-join-game" class="lobby-btn" style="margin: 0; width: auto; min-width: 100px;">Go</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -171,6 +82,9 @@
     <button id="themeToggle" class="theme-switch">Thème</button>
     <button id="devModeBtn" style="position: absolute; bottom: 10px; right: 10px; opacity: 0.3; font-size: 10px;">Dev</button>
     
+
+
+
     <!-- In-Game Sidebar (Room Info + Players) -->
     <div id="ingame-sidebar" class="hidden">
         <div class="sidebar-header">

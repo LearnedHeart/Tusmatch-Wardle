@@ -6,6 +6,7 @@ let myPseudo = null;
 let currentRoomCode = null;
 let isHost = false;
 let roomChannel = null;
+let playerCount = 0; // Track number of players for cleanup logic
 
 // --- DOM ELEMENTS ---
 const lobbyOverlay = document.getElementById('lobby-overlay');
@@ -23,6 +24,13 @@ const ingameRoomCode = document.getElementById('ingame-room-code');
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const mode = urlParams.get('mode');
+
+    // Auto-rejoin Session
+    const savedRoom = sessionStorage.getItem('tusmatch_room');
+    const savedPlayerId = sessionStorage.getItem('tusmatch_player_id');
+    if (savedRoom && savedPlayerId && mode === 'private') {
+        rejoinSession(savedRoom, savedPlayerId);
+    }
 
     if (mode === 'private') {
         // Afficher le lobby
@@ -151,8 +159,14 @@ async function createGame() {
         currentRoomCode = code;
         isHost = true;
 
+        // Session Persistence
+        sessionStorage.setItem('tusmatch_room', code);
+        sessionStorage.setItem('tusmatch_pseudo', pseudo);
+        sessionStorage.setItem('tusmatch_is_host', 'true');
+
         // 4. S'ajouter comme joueur
         await joinLobbyAsPlayer(partyData.id, pseudo, true);
+        sessionStorage.setItem('tusmatch_player_id', myPlayerId);
         
         // 5. Afficher la salle d'attente
         showWaitingRoom(code);
@@ -200,8 +214,14 @@ async function joinGame(code) {
         currentRoomCode = code;
         isHost = false;
 
+        // Session Persistence
+        sessionStorage.setItem('tusmatch_room', code);
+        sessionStorage.setItem('tusmatch_pseudo', pseudo);
+        sessionStorage.setItem('tusmatch_is_host', 'false');
+
         // 2. S'ajouter
         await joinLobbyAsPlayer(party.id, pseudo, false);
+        sessionStorage.setItem('tusmatch_player_id', myPlayerId);
 
         // 3. Si la partie est déjà en cours, on lance direct
         if (party.statut === 'en_cours') {
@@ -301,15 +321,17 @@ function subscribeToRoom(partyId) {
             }
         })
         // Écouter le typing (Broadcast)
-        .on('broadcast', { event: 'typing' }, (payload) => {
-            if (payload.id !== myPlayerId) {
+        .on('broadcast', { event: 'typing' }, (event) => {
+            const payload = event.payload;
+            if (payload && payload.id !== myPlayerId) {
                 showTypingIndicator(payload);
             }
         })
         // Écouter les mises à jour d'état (typing progress)
-        .on('broadcast', { event: 'state_update' }, (payload) => {
-            console.log("Reçu state_update:", payload); // DEBUG
-            if (payload.id !== myPlayerId) {
+        .on('broadcast', { event: 'state_update' }, (event) => {
+            // console.log("Reçu state_update:", event); // DEBUG
+            const payload = event.payload;
+            if (payload && payload.id !== myPlayerId) {
                 handleOpponentStateUpdate(payload);
             }
         })
@@ -408,15 +430,17 @@ window.sendMultiplayerState = function(filledCount, rowIndex) {
     // Debounce léger pour éviter de spammer à chaque frappe rapide
     stateTimeout = setTimeout(() => {
         if (roomChannel) {
+            const payload = { 
+                user: myPseudo,
+                id: myPlayerId,
+                row: rowIndex,
+                filled: filledCount
+            };
+            // console.log("Sending State Update:", payload); 
             roomChannel.send({
                 type: 'broadcast',
                 event: 'state_update',
-                payload: { 
-                    user: myPseudo,
-                    id: myPlayerId,
-                    row: rowIndex,
-                    filled: filledCount
-                }
+                payload: payload
             });
         }
     }, 50);
@@ -426,14 +450,16 @@ window.sendMultiplayerState = function(filledCount, rowIndex) {
 
 function handleOpponentStateUpdate(payload) {
     // payload: { user, id, row, filled }
+    // console.log("Processing State Update:", payload);
+
     let card = null;
 
-    // 1. Essayer par ID (Nouvelle version)
+    // 1. Essayer par ID
     if (payload.id) {
         card = document.getElementById(`opp-${payload.id}`);
     }
 
-    // 2. Fallback par Pseudo (Ancienne version ou si ID manquant)
+    // 2. Fallback par Pseudo
     if (!card && payload.user) {
         const cards = document.querySelectorAll('.opponent-card');
         cards.forEach(c => {
@@ -445,18 +471,29 @@ function handleOpponentStateUpdate(payload) {
 
     if (card) {
         const miniGrid = card.querySelector('.mini-grid');
-        if (miniGrid && miniGrid.children[payload.row]) {
-            const row = miniGrid.children[payload.row];
+        // Vérification robuste de la ligne
+        const rowIndex = payload.row !== undefined ? payload.row : 0; // Fallback 0 si undefined (ne devrait pas arriver)
+        
+        if (miniGrid && miniGrid.children[rowIndex]) {
+            const row = miniGrid.children[rowIndex];
             const tiles = row.children;
             
             for (let i = 0; i < tiles.length; i++) {
                 if (i < payload.filled) {
                     tiles[i].classList.add('filled');
+                    tiles[i].style.backgroundColor = "var(--filled-tile)"; // Force style
+                    tiles[i].style.borderColor = "var(--filled-tile)";
                 } else {
                     tiles[i].classList.remove('filled');
+                    tiles[i].style.backgroundColor = ""; // Reset
+                    tiles[i].style.borderColor = "";
                 }
             }
+        } else {
+            console.warn("Row not found for index:", rowIndex);
         }
+    } else {
+        console.warn("Opponent card not found for:", payload);
     }
 }
 
@@ -472,6 +509,11 @@ function handleOpponentGuess(essai) {
         
         for (let i = 0; i < pattern.length; i++) {
             tiles[i].classList.remove('filled'); // Nettoyer l'état de typing
+            
+            // IMPORTANT: Nettoyer les styles inline forcés par handleOpponentStateUpdate
+            tiles[i].style.backgroundColor = "";
+            tiles[i].style.borderColor = "";
+
             const val = pattern[i];
             if (val === '2') tiles[i].classList.add('correct');
             else if (val === '1') tiles[i].classList.add('present');
@@ -518,6 +560,7 @@ window.triggerMultiplayerRestart = async function() {
                 fin_round_at: null 
             })
             .eq('id', party.id);
+    sessionStorage.clear(); // Clear session on explicit leave
     }
 };
 
@@ -530,9 +573,8 @@ async function leaveGame() {
         return;
     }
 
-    if (!confirm("Voulez-vous vraiment quitter la partie ?")) {
-        return;
-    }
+    // Confirmation handled by Modal now
+    // if (!confirm("Voulez-vous vraiment quitter la partie ?")) return;
 
     try {
         // 1. Récupérer la partie et les joueurs
@@ -612,10 +654,66 @@ window.refreshPlayerList = async function(partyId) {
         .eq('partie_id', partyId);
     
     if (players) {
+        playerCount = players.length;
+
+        // Host Transfer Logic
+        const hasHost = players.some(p => p.est_host);
+        if (!hasHost && players.length > 0) {
+            // If no host, and I am the first one in the list, I claim host.
+            // We sort by created_at to be deterministic if possible, but here we trust the array order (usually insertion order)
+            // or we can just check if I am the first one.
+            if (players[0].id === myPlayerId) {
+                console.log("No host found. Claiming host status...");
+                await supabaseClient
+                    .from('joueurs')
+                    .update({ est_host: true })
+                    .eq('id', myPlayerId);
+                isHost = true;
+                sessionStorage.setItem('tusmatch_is_host', 'true');
+            }
+        }
+
         updatePlayerListUI(players);
         updateIngamePlayerList(players);
     }
 };
+
+// --- CLEANUP ON CLOSE ---
+window.addEventListener('beforeunload', () => {
+    if (myPlayerId) {
+        // 1. Delete Player
+        const headers = {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        };
+
+        // Delete player using keepalive
+        fetch(`${supabaseUrl}/rest/v1/joueurs?id=eq.${myPlayerId}`, {
+            method: 'DELETE',
+            headers: headers,
+            keepalive: true
+        });
+
+        // 2. If I am the last player (locally known), try to delete the party
+        // Note: This is a best-effort. If multiple players leave at once, it might race.
+        // But if I am the only one in the list, I should delete the party.
+        if (playerCount <= 1 && currentRoomCode) {
+             // We need the party ID. We might not have it stored globally except in closure.
+             // But we can try to find it via code if we don't have ID.
+             // However, fetch needs ID for DELETE usually or a filter.
+             // We can filter by code? No, parties table has ID.
+             // But we can filter by code in the URL: ?code=eq.CODE
+             
+             fetch(`${supabaseUrl}/rest/v1/parties?code=eq.${currentRoomCode}`, {
+                method: 'DELETE',
+                headers: headers,
+                keepalive: true
+            });
+        }
+    }
+});
 
 // Override startGameMultiplayer to show the list
 const originalStartGameMultiplayer = window.startGameMultiplayer;
@@ -703,5 +801,168 @@ function setupShareButtons(linkBtnId, codeBtnId) {
                 });
             }
         });
+    }
+}
+
+// --- ANIMATED PLACEHOLDERS (TYPEWRITER EFFECT) ---
+document.addEventListener('DOMContentLoaded', () => {
+    const pseudoInput = document.getElementById('player-pseudo');
+    const codeInput = document.getElementById('lobby-code-input');
+    
+    if (pseudoInput && codeInput) {
+        const pseudos = ['COOLKID67', 'WORDSLAYER', 'TUSMASTER', 'WORDLE_KING', 'GUESS_WHO', 'ALPHA_WOLF', 'NINJA_WORD'];
+        // Codes réalistes (Alphanumérique 5 chars)
+        const codes = ['XJ9KZ', 'A7B2P', 'K9L1M', 'P4R5T', '9X2Y1', 'M3G4L', 'Q8W7E', 'Z1X2C'];
+        
+        animateInputPlaceholder(pseudoInput, pseudos, 'Ex: ');
+        animateInputPlaceholder(codeInput, codes, 'Ex: ');
+    }
+});
+
+function animateInputPlaceholder(input, texts, prefix = '') {
+    let textIndex = 0;
+    let charIndex = 0;
+    let isDeleting = false;
+    let currentFullText = prefix + texts[0];
+
+    function type() {
+        // Définir le texte cible actuel
+        const targetText = prefix + texts[textIndex];
+        
+        if (isDeleting) {
+            // Suppression
+            currentFullText = targetText.substring(0, charIndex);
+            charIndex--;
+        } else {
+            // Écriture
+            currentFullText = targetText.substring(0, charIndex + 1);
+            charIndex++;
+        }
+
+        input.setAttribute('placeholder', currentFullText);
+
+        let typeSpeed = 100; // Vitesse de frappe normale
+
+        if (!isDeleting && charIndex === targetText.length) {
+            // Fin du mot : Pause longue avant d'effacer
+            typeSpeed = 2000;
+            isDeleting = true;
+        } else if (isDeleting && charIndex < prefix.length) {
+            // Fin de suppression (on a gardé le préfixe ou tout effacé)
+            // Ici on efface jusqu'à la fin du préfixe pour garder "Ex: " ? 
+            // Non, effaçons tout pour réécrire "Ex: NouveauMot" proprement ou juste le mot.
+            // Simplification : on efface jusqu'au préfixe.
+            isDeleting = false;
+            textIndex = (textIndex + 1) % texts.length;
+            typeSpeed = 500;
+            // Reset charIndex pour recommencer à écrire après le préfixe
+            charIndex = prefix.length; 
+        } else if (isDeleting) {
+            typeSpeed = 50; // Vitesse d'effacement rapide
+        }
+
+        setTimeout(type, typeSpeed);
+    }
+
+    // Initialiser charIndex à la longueur du préfixe pour commencer à écrire le mot direct
+    charIndex = prefix.length;
+    input.setAttribute('placeholder', prefix);
+    setTimeout(type, 500);
+}
+
+// --- SESSION RESTORATION LOGIC ---
+
+async function rejoinSession(code, playerId) {
+    console.log("Restoring session for room:", code);
+    
+    // Hide lobby immediately to prevent flickering
+    if (lobbyOverlay) lobbyOverlay.classList.add('hidden');
+    
+    currentRoomCode = code;
+    // myPlayerId = playerId; // Don't set it yet, verify first
+    myPseudo = sessionStorage.getItem('tusmatch_pseudo');
+    // isHost = sessionStorage.getItem('tusmatch_is_host') === 'true'; // Verify later
+    
+    try {
+        // Fetch party details to get the word and status
+        const { data: party, error } = await supabaseClient
+            .from('parties')
+            .select('*')
+            .eq('code', code)
+            .single();
+            
+        if (error || !party) {
+            console.error("Session invalid or party ended");
+            sessionStorage.clear();
+            if (lobbyOverlay) lobbyOverlay.classList.remove('hidden');
+            return;
+        }
+
+        // Verify if player exists
+        const { data: player } = await supabaseClient
+            .from('joueurs')
+            .select('*')
+            .eq('id', playerId)
+            .single();
+
+        if (!player) {
+            console.log("Player not found in DB (maybe deleted on close). Re-joining...");
+            // Re-join as new player
+            // We try to keep the same pseudo and host status if possible (but host might be taken)
+            // If I was host, I try to reclaim it if no one else is.
+            
+            // Check if there is a host currently
+            const { data: players } = await supabaseClient.from('joueurs').select('est_host').eq('partie_id', party.id);
+            const hasHost = players && players.some(p => p.est_host);
+            
+            const shouldBeHost = !hasHost; // If no host, I become host
+            
+            await joinLobbyAsPlayer(party.id, myPseudo, shouldBeHost);
+            // joinLobbyAsPlayer sets myPlayerId
+            sessionStorage.setItem('tusmatch_player_id', myPlayerId);
+            sessionStorage.setItem('tusmatch_is_host', shouldBeHost);
+            isHost = shouldBeHost;
+        } else {
+            // Player exists
+            myPlayerId = player.id;
+            isHost = player.est_host;
+            sessionStorage.setItem('tusmatch_is_host', isHost);
+        }
+        
+        // Re-subscribe to realtime events
+        subscribeToRoom(party.id);
+        
+        // Restore Game State
+        if (typeof initGame === 'function') {
+            // Initialize game with the correct word
+            await initGame(party.mot_a_trouver);
+            
+            // Restore guesses from session storage
+            if (typeof window.loadGuessesFromSession === 'function') {
+                window.loadGuessesFromSession();
+            }
+        }
+        
+        // Restore UI based on game status
+        if (party.statut === 'attente') {
+             showWaitingRoom(code);
+             if (lobbyOverlay) lobbyOverlay.classList.remove('hidden');
+        } else {
+            // Game is running
+            if (lobbyOverlay) lobbyOverlay.classList.add('hidden');
+            
+            // Show Sidebar and Opponents
+            setupOpponentsUI();
+            const sidebar = document.getElementById('ingame-sidebar');
+            if (sidebar) sidebar.classList.remove('hidden');
+            
+            // Refresh player list
+            refreshPlayerList(party.id);
+        }
+        
+    } catch (e) {
+        console.error("Error rejoining session:", e);
+        sessionStorage.clear();
+        if (lobbyOverlay) lobbyOverlay.classList.remove('hidden');
     }
 }
