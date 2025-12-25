@@ -455,10 +455,11 @@ body.opponents-open #btn-toggle-opponents {
 
     #ingame-players-content {
         flex-direction: row;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 20px;
         overflow-y: hidden;
         overflow-x: auto;
+        padding-bottom: 5px; /* Scrollbar space */
     }
 
     /* Cacher le bouton toggle */

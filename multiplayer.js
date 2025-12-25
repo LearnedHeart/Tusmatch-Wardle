@@ -1526,6 +1526,14 @@ window.showReaction = function(type, playerId) {
     const svgContent = REACTION_SVGS[type];
     if (!svgContent) return;
 
+    // Mobile Check: If mobile and not in grid view, ignore opponent reactions
+    const isMobile = window.innerWidth <= 900;
+    const isOpponentsOpen = document.body.classList.contains('opponents-open');
+    
+    if (isMobile && playerId !== myPlayerId && !isOpponentsOpen) {
+        return;
+    }
+
     // Find target element to float from
     let targetEl = null;
     
@@ -1537,7 +1545,15 @@ window.showReaction = function(type, playerId) {
         targetEl = document.getElementById(`opp-${playerId}`);
     }
 
-    if (!targetEl) return;
+    // Safety check: if element is hidden (display:none), rect will be all 0
+    if (!targetEl || targetEl.offsetParent === null) {
+        // If I am sending it, force it to show on center even if something is wrong
+        if (playerId === myPlayerId) {
+             targetEl = document.body;
+        } else {
+             return; // Don't show if target is hidden
+        }
+    }
 
     const reactionEl = document.createElement('div');
     reactionEl.className = 'floating-reaction';
