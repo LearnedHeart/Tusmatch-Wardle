@@ -1479,19 +1479,8 @@ const REACTION_SVGS = {
     surprised: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#C780FA"/><circle cx="10" cy="14" r="2" fill="#4A148C"/><circle cx="22" cy="14" r="2" fill="#4A148C"/><ellipse cx="16" cy="22" rx="3" ry="4" fill="#4A148C"/><path d="M8 10 Q10 8 12 10" stroke="#4A148C" stroke-width="1" fill="none"/><path d="M20 10 Q22 8 24 10" stroke="#4A148C" stroke-width="1" fill="none"/></svg>`
 };
 
-window.toggleReactions = function() {
-    const bar = document.getElementById('reaction-bar');
-    if (bar) {
-        bar.classList.toggle('open');
-    }
-};
-
 window.sendReaction = function(type) {
     if (!roomChannel) return;
-    
-    // Close menu after selection
-    const bar = document.getElementById('reaction-bar');
-    if (bar) bar.classList.remove('open');
     
     // Show locally immediately
     showReaction(type, myPlayerId);
