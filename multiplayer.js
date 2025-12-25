@@ -1283,7 +1283,10 @@ async function rejoinSession(code, playerId) {
             // Update Sidebar Mode Display
             const modeDisplay = document.getElementById('sidebar-game-mode');
             if (modeDisplay) {
-                modeDisplay.textContent = selectedGameMode || 'PREUMS';
+                const displayMode = selectedGameMode === 'temps' ? 'CHRONO' : 
+                                    selectedGameMode === 'preums' ? 'PREMIER' : 
+                                    (selectedGameMode || 'PREMIER').toUpperCase();
+                modeDisplay.textContent = displayMode;
             }
             
             // Restore guesses from session storage
