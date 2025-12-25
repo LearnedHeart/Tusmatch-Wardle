@@ -177,8 +177,8 @@ async function initGame(customWord = null) {
         grid.appendChild(row);
     }
     
-    // Charger le thème (par défaut '' -> Colorful)
-    const savedTheme = localStorage.getItem('theme') || '';
+    // Charger le thème (par défaut 'light' -> Clair)
+    const savedTheme = localStorage.getItem('theme') || 'light';
     document.body.className = savedTheme;
 
     updateGrid();
@@ -239,12 +239,36 @@ function handleEnter() {
     
     // Vérification basique si mot existe (optionnel pour ce prototype)
     if (!DICTIONARY.includes(guessString)) {
-        alert("Mot inconnu !"); // À remplacer par une jolie notification
+        // alert("Mot inconnu !"); // À remplacer par une jolie notification
         animateShake();
+        showToast("Mot inconnu");
         return;
     }
 
     submitGuess();
+}
+
+function showToast(message) {
+    const container = document.getElementById('message-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast-message';
+    toast.textContent = message;
+    
+    container.appendChild(toast);
+    
+    // Trigger reflow
+    toast.offsetHeight;
+    
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            container.removeChild(toast);
+        }, 300);
+    }, 2000);
 }
 
 function updateGrid() {

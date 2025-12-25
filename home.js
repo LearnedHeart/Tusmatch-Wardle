@@ -13,8 +13,8 @@ function themeLabel(cls) {
     return 'Coloré';
 }
 
-// Charger le thème sauvegardé (par défaut '' -> Coloré)
-const savedTheme = localStorage.getItem('theme') || '';
+// Charger le thème sauvegardé (par défaut 'claire' -> Claire)
+const savedTheme = localStorage.getItem('theme') || 'claire';
 body.className = savedTheme;
 currentThemeIndex = themes.indexOf(savedTheme);
 

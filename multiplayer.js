@@ -44,8 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('btn-create-game').addEventListener('click', createGame);
         document.getElementById('btn-join-game').addEventListener('click', () => {
             const code = document.getElementById('lobby-code-input').value.toUpperCase();
-            if (code.length >= 3) joinGame(code);
-            else alert("Code trop court !");
+            if (code.length >= 3) {
+                joinGame(code);
+            } else {
+                // alert("Code trop court !");
+                const input = document.getElementById('lobby-code-input');
+                input.classList.add('shake');
+                setTimeout(() => input.classList.remove('shake'), 500);
+            }
         });
 
         // Avatar Carousel Logic
@@ -513,6 +519,9 @@ function startGameMultiplayer(mot) {
     
     const btnToggle = document.getElementById('btn-toggle-sidebar');
     if (btnToggle) btnToggle.classList.remove('hidden');
+
+    const btnToggleOpponents = document.getElementById('btn-toggle-opponents');
+    if (btnToggleOpponents) btnToggleOpponents.classList.remove('hidden');
     
     // 9. Update list immediately
     if (currentRoomCode) {
@@ -883,6 +892,15 @@ async function leaveGame() {
         console.error("Erreur lors du départ:", e);
     }
 
+    // Clear Session to prevent auto-rejoin
+    sessionStorage.removeItem('tusmatch_room');
+    // sessionStorage.removeItem('tusmatch_pseudo'); // On peut garder le pseudo pour la prochaine fois
+    sessionStorage.removeItem('tusmatch_is_host');
+    sessionStorage.removeItem('tusmatch_player_id');
+    if (currentRoomCode) {
+        sessionStorage.removeItem('tusmatch_guesses_' + currentRoomCode);
+    }
+
     // 5. Redirection
     window.location.href = 'index.html';
 }
@@ -975,6 +993,9 @@ window.refreshPlayerList = async function(partyId) {
 };
 
 // --- CLEANUP ON CLOSE ---
+/* 
+// Désactivé pour permettre le refresh sans perdre la session.
+// Le nettoyage se fait uniquement via le bouton "Quitter" (leaveGame).
 window.addEventListener('beforeunload', () => {
     if (myPlayerId) {
         // 1. Delete Player
@@ -993,15 +1014,7 @@ window.addEventListener('beforeunload', () => {
         });
 
         // 2. If I am the last player (locally known), try to delete the party
-        // Note: This is a best-effort. If multiple players leave at once, it might race.
-        // But if I am the only one in the list, I should delete the party.
         if (playerCount <= 1 && currentRoomCode) {
-             // We need the party ID. We might not have it stored globally except in closure.
-             // But we can try to find it via code if we don't have ID.
-             // However, fetch needs ID for DELETE usually or a filter.
-             // We can filter by code? No, parties table has ID.
-             // But we can filter by code in the URL: ?code=eq.CODE
-             
              fetch(`${supabaseUrl}/rest/v1/parties?code=eq.${currentRoomCode}`, {
                 method: 'DELETE',
                 headers: headers,
@@ -1010,6 +1023,7 @@ window.addEventListener('beforeunload', () => {
         }
     }
 });
+*/
 
 
 
@@ -1042,11 +1056,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnToggle = document.getElementById('btn-toggle-sidebar');
     const sidebar = document.getElementById('ingame-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
+    
+    // New Opponents Toggle
+    const btnToggleOpponents = document.getElementById('btn-toggle-opponents');
 
     if (btnToggle && sidebar) {
         btnToggle.addEventListener('click', () => {
             sidebar.classList.toggle('open');
             if (overlay) overlay.classList.toggle('visible');
+        });
+    }
+    
+    if (btnToggleOpponents) {
+        // Note: Visibility is handled by startGameMultiplayer / leaveGame
+        
+        btnToggleOpponents.addEventListener('click', () => {
+            document.body.classList.toggle('opponents-open');
         });
     }
 
@@ -1283,6 +1308,9 @@ async function rejoinSession(code, playerId) {
             // Show Toggle Button
             const btnToggle = document.getElementById('btn-toggle-sidebar');
             if (btnToggle) btnToggle.classList.remove('hidden');
+
+            const btnToggleOpponents = document.getElementById('btn-toggle-opponents');
+            if (btnToggleOpponents) btnToggleOpponents.classList.remove('hidden');
             
             // Refresh player list
             refreshPlayerList(party.id);

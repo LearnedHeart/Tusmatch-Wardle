@@ -28,6 +28,62 @@
     display: flex; gap: 10px; justify-content: center; margin-bottom: 5px;
     flex-wrap: wrap;
 }
+
+/* Opponents Full Screen Mode (Global) */
+body.opponents-open #opponents-container {
+    display: flex !important; /* Force display even if hidden by media query */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-color);
+    z-index: 1999;
+    overflow-y: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    padding: 60px 20px 20px 20px;
+    gap: 20px;
+}
+
+body.opponents-open #opponents-container .opponent-card {
+    width: 45% !important;
+    min-width: 140px;
+    max-width: 200px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transform: scale(1.1);
+    margin: 10px;
+}
+
+body.opponents-open .sidebar-toggle:not(#btn-toggle-opponents),
+body.opponents-open .back-btn,
+body.opponents-open .theme-switch {
+    opacity: 0.2;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+body.opponents-open #btn-toggle-opponents {
+    background: var(--start-tile);
+    color: white;
+    border-color: white;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+}
+
+/* Force display of opponents toggle button always */
+/* #btn-toggle-opponents:not(.hidden) {
+    display: flex !important;
+} */
+
+/* Mobile: Hide opponents by default */
+@media (max-width: 900px) {
+    #opponents-container {
+        display: none;
+    }
+}
+
 .opponent-card {
     background: var(--tile-bg); padding: 10px; border-radius: 8px;
     border: 1px solid var(--tile-border); width: 160px;
@@ -483,24 +539,7 @@
 }
 
 .floating-reaction {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    pointer-events: none;
-    animation: floatReaction 2.5s ease-out forwards;
-    z-index: 2000;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
-}
-
-@keyframes floatReaction {
-    0% { transform: translateY(0) scale(0); opacity: 0; }
-    15% { transform: translateY(-20px) scale(1.2); opacity: 1; }
-    50% { transform: translateY(-60px) scale(1); opacity: 1; }
-    100% { transform: translateY(-120px) scale(0.8); opacity: 0; }
-}
-
-.floating-reaction {
-    position: absolute;
+    position: fixed;
     width: 60px;
     height: 60px;
     pointer-events: none;
