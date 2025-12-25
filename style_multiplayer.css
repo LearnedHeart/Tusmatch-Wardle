@@ -261,8 +261,9 @@ body.opponents-open #btn-toggle-opponents {
 
 /* --- SIDEBAR RESPONSIVE --- */
 .sidebar-toggle {
-    /* Reset fixed positioning */
-    position: static;
+    position: fixed; /* Changed from absolute to fixed */
+    top: 15px;
+    left: 100px; /* Juste à côté du bouton retour */
     padding: 8px 12px;
     border-radius: 8px;
     background: var(--tile-bg);
@@ -270,10 +271,12 @@ body.opponents-open #btn-toggle-opponents {
     border: 2px solid var(--tile-border);
     font-weight: 600;
     cursor: pointer;
+    z-index: 2000; /* Au dessus de tout, même du lobby si besoin */
     display: none; /* Caché par défaut (desktop) */
     align-items: center;
     justify-content: center;
     font-size: 0.5rem;
+    backdrop-filter: blur(5px);
 }
 
 /* Force display on mobile if not hidden */

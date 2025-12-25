@@ -59,30 +59,6 @@ body {
     min-height: 100vh;
     transition: background 0.4s ease, color 0.4s ease;
     touch-action: manipulation; /* Disable double-tap zoom on some browsers */
-    padding-top: 60px; /* Space for fixed header */
-}
-
-/* --- HEADER --- */
-#game-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 15px;
-    background: var(--bg-color); /* Or semi-transparent */
-    z-index: 3000; /* Very high to stay on top */
-    border-bottom: 1px solid var(--tile-border);
-    backdrop-filter: blur(10px);
-}
-
-.header-left, .header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
 }
 
 /* --- UI COMPONENTS --- */
@@ -94,23 +70,27 @@ button {
 }
 
 .theme-switch {
-    /* Reset fixed positioning */
-    position: static; 
-    padding: 8px 12px;
+    position: fixed; /* Changed from absolute to fixed */
+    top: 15px;
+    right: 15px;
+    padding: 8px 12px; /* Slightly smaller padding */
     border-radius: 8px;
     background: var(--tile-bg);
     color: var(--text-color);
     border: 2px solid var(--tile-border);
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.8rem; /* Smaller font */
     transition: transform 0.2s;
+    z-index: 2000; /* High z-index to stay on top */
+    backdrop-filter: blur(5px); /* Nice effect */
 }
 .theme-switch:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.06); }
 
-/* Bouton Retour */
+/* Bouton Retour: couleurs similaires aux tuiles, discret pour ne pas inciter au départ */
 .back-btn {
-    /* Reset fixed positioning */
-    position: static;
+    position: fixed; /* Changed from absolute to fixed */
+    left: 15px;
+    top: 15px;
     padding: 8px 12px;
     border-radius: 8px;
     background: var(--tile-bg);
@@ -677,12 +657,14 @@ body.claire .key.absent {
 @media (max-width: 600px) {
     body {
         overflow: hidden; /* Prevent scrolling on game screen */
-        padding-top: 50px; /* Space for top buttons */
+        padding-top: 0; /* Let game container handle spacing */
+        justify-content: flex-start; /* Align to top to prevent overlap */
     }
 
     .game-container {
-        height: calc(100vh - 50px);
+        height: 100vh;
         justify-content: space-between;
+        padding-top: 60px; /* Space for top buttons */
         padding-bottom: 10px;
         gap: 5px;
         width: 100%;
