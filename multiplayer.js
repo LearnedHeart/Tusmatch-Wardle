@@ -426,7 +426,9 @@ function subscribeToRoom(partyId) {
         .on('broadcast', { event: 'reaction' }, (event) => {
             const payload = event.payload;
             if (payload && payload.id !== myPlayerId) {
-                showReaction(payload.type, payload.id);
+                if (typeof window.showReaction === 'function') {
+                    window.showReaction(payload.type, payload.id);
+                }
             }
         })
         .subscribe((status) => {
