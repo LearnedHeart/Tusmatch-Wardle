@@ -46,7 +46,7 @@ body.claire {
     --filled-tile: #878a8c;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
 
 body {
     background: var(--bg-color);
@@ -58,7 +58,6 @@ body {
     justify-content: center;
     min-height: 100vh;
     transition: background 0.4s ease, color 0.4s ease;
-    touch-action: manipulation; /* Disable double-tap zoom on some browsers */
 }
 
 /* --- UI COMPONENTS --- */
@@ -66,7 +65,6 @@ button {
     cursor: pointer;
     border: none;
     font-family: inherit;
-    touch-action: manipulation; /* Disable double-tap zoom on buttons */
 }
 
 .theme-switch {
@@ -655,21 +653,28 @@ body.claire .key.absent {
 
 /* --- MOBILE OPTIMIZATIONS --- */
 @media (max-width: 600px) {
+    h1 {
+        font-size: 2.5rem; /* Reduce title size for mobile */
+        margin-bottom: 1rem;
+        word-break: break-word; /* Ensure it doesn't overflow */
+    }
+
     body {
-        overflow: hidden; /* Prevent scrolling on game screen */
-        padding-top: 0; /* Let game container handle spacing */
-        justify-content: flex-start; /* Align to top to prevent overlap */
+        overflow-y: auto; /* Allow scrolling */
+        padding-top: 0;
+        justify-content: flex-start;
     }
 
     .game-container {
-        height: 100vh;
-        justify-content: space-between;
-        padding-top: 60px; /* Space for top buttons */
-        padding-bottom: 10px;
-        gap: 5px;
+        height: auto; /* Allow container to grow */
+        min-height: 100vh;
+        justify-content: flex-start; /* Stack from top */
+        padding-top: 60px;
+        padding-bottom: 20px;
+        gap: 10px;
         width: 100%;
         max-width: 100%;
-        overflow: hidden;
+        overflow: visible; /* Allow content to flow */
     }
 
     /* Grid Adjustments */
