@@ -78,6 +78,7 @@ button {
     border: 2px solid var(--tile-border);
     font-weight: 600;
     transition: transform 0.2s;
+    z-index: 200;
 }
 .theme-switch:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.06); }
 
@@ -97,6 +98,54 @@ button {
     align-items: center;
     justify-content: center;
     transition: transform 0.12s, box-shadow 0.12s;
+    z-index: 200; /* Ensure it's clickable */
+}
+
+/* Score Popup Animation */
+.score-popup {
+    position: absolute;
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    pointer-events: none;
+    animation: floatUp 1.5s ease-out forwards;
+    z-index: 50;
+}
+
+@keyframes floatUp {
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    50% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+    100% { transform: translateY(-40px) scale(1); opacity: 0; }
+}
+
+.row-highlight-eco {
+    animation: highlightEco 1s ease-in-out;
+}
+
+@keyframes highlightEco {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(255, 215, 0, 0.3); } /* Gold tint */
+    100% { background-color: transparent; }
+}
+
+.big-score-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    font-weight: 800;
+    color: #FFD700;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    animation: popIn 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    z-index: 60;
+}
+
+@keyframes popIn {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
 }
 .back-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.06); }
 
@@ -209,6 +258,39 @@ h1 { font-size: 4rem; margin-bottom: 2rem; letter-spacing: 2px; }
     display: flex;
     gap: 5px;
     justify-content: center; /* Center tiles in row */
+    position: relative; /* For timer positioning */
+}
+
+.timer-display {
+    position: absolute;
+    right: -60px; /* Adjust based on layout */
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ff4444;
+    color: white;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    animation: pulse 1s infinite;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+
+@keyframes pulse {
+    0% { transform: translateY(-50%) scale(1); }
+    50% { transform: translateY(-50%) scale(1.1); }
+    100% { transform: translateY(-50%) scale(1); }
+}
+
+.tile.skipped {
+    background-color: var(--absent) !important;
+    border-color: var(--absent) !important;
+    opacity: 0.5;
 }
 
 .tile {

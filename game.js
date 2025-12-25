@@ -142,12 +142,23 @@ async function initGame(customWord = null) {
     guesses = [];
     isGameOver = false;
     
+    // Reset Keyboard Hints
+    document.querySelectorAll('.key').forEach(key => {
+        key.classList.remove('correct', 'present', 'absent');
+    });
+
     // Init hints
     updateHintsFromHistory();
     currentGuess[0] = targetWord[0];
 
+    // Show Leave Button (if hidden)
+    const leaveBtn = document.getElementById('btn-leave-game');
+    if (leaveBtn) leaveBtn.classList.remove('hidden');
+
     // Création de la grille HTML
     grid.innerHTML = "";
+    
+    updateMaxScoreDisplay();
     grid.style.setProperty('--cols', wordLength);
     for (let i = 0; i < MAX_GUESSES; i++) {
         const row = document.createElement("div");
@@ -292,6 +303,11 @@ function updateHintsFromHistory() {
 }
 
 function submitGuess() {
+    // Stop Pressure Timer if active
+    if (typeof clearPressureTimer === 'function') {
+        clearPressureTimer();
+    }
+
     const guessParts = [...currentGuess];
     const targetParts = targetWord.split("");
     const row = grid.children[guesses.length];
@@ -360,18 +376,38 @@ function submitGuess() {
         const isMultiplayer = new URLSearchParams(window.location.search).get('mode') === 'private';
 
         if (guessString === targetWord) {
-            if (isMultiplayer && window.handleMultiplayerEnd) {
-                window.handleMultiplayerEnd(true, targetWord);
-            } else {
-                showEndScreen(true, targetWord);
+            const score = calculateScore(true, guesses.length, guessString);
+            
+            // 1. Notify Server IMMEDIATELY (if multiplayer)
+            if (isMultiplayer && window.notifyMultiplayerFinish) {
+                window.notifyMultiplayerFinish(true, targetWord, score);
             }
+
+            // 2. Trigger Animation
+            animateScoring(true, guesses.length - 1, guessString, () => {
+                // If single player, show screen.
+                if (!isMultiplayer) {
+                    showEndScreen(true, targetWord, null, score);
+                }
+                // If multiplayer, handleRoundEnd will take over when ready
+            });
             isGameOver = true;
         } else if (guesses.length === MAX_GUESSES) {
-            if (isMultiplayer && window.handleMultiplayerEnd) {
-                window.handleMultiplayerEnd(false, targetWord);
-            } else {
-                showEndScreen(false, targetWord);
+            const score = calculateScore(false, guesses.length, guessString);
+            
+            // 1. Notify Server IMMEDIATELY (if multiplayer)
+            if (isMultiplayer && window.notifyMultiplayerFinish) {
+                window.notifyMultiplayerFinish(false, targetWord, score);
             }
+
+            // 2. Trigger Animation
+            animateScoring(false, guesses.length - 1, guessString, () => {
+                // If single player, show screen.
+                if (!isMultiplayer) {
+                    showEndScreen(false, targetWord, null, score);
+                }
+                // If multiplayer, handleRoundEnd will take over when ready
+            });
             isGameOver = true;
         } else {
             // Copier les lettres correctes (sans style) vers la ligne suivante
@@ -407,7 +443,7 @@ const wordDisplay = document.getElementById('wordDisplay');
 const restartBtn = document.getElementById('restartBtn');
 const shareBtn = document.getElementById('shareBtn');
 
-function showEndScreen(victory, word, scores = null) {
+function showEndScreen(victory, word, scores = null, myScore = null) {
     endModal.classList.remove('hidden');
     endModal.classList.remove('victory', 'defeat');
     endModal.classList.add(victory ? 'victory' : 'defeat');
@@ -422,7 +458,7 @@ function showEndScreen(victory, word, scores = null) {
         // WAITING STATE (Word hidden)
         if (word === null) {
             endTitle.textContent = "Terminé !";
-            endMessage.innerHTML = "En attente des autres joueurs...<br>Le résultat s'affichera bientôt.";
+            endMessage.innerHTML = `En attente des autres joueurs...<br>Le résultat s'affichera bientôt.<br><strong>Score manche: ${myScore !== null ? myScore : '?'} pts</strong>`;
             wordDisplay.style.display = 'none';
             
             // Hide button while waiting
@@ -474,11 +510,11 @@ function showEndScreen(victory, word, scores = null) {
         
         if (victory) {
             endTitle.textContent = "Victoire !";
-            endMessage.textContent = "Bien joué, tu as trouvé le mot !";
+            endMessage.innerHTML = `Bien joué, tu as trouvé le mot !<br><br><strong>Score: ${myScore || 0} pts</strong>`;
             wordDisplay.style.display = 'none';
         } else {
             endTitle.textContent = "Défaite...";
-            endMessage.textContent = "Dommage, le mot était :";
+            endMessage.innerHTML = `Dommage, le mot était :<br><br><strong>Score: ${myScore || 0} pts</strong>`;
             wordDisplay.textContent = word;
             wordDisplay.style.display = 'block';
         }
@@ -524,13 +560,7 @@ themeBtn.addEventListener('click', () => {
     themeBtn.textContent = themeLabel(newTheme);
 });
 
-// Dev Mode Button
-document.getElementById('devModeBtn').addEventListener('click', () => {
-    const word = prompt("DEV MODE: Choisir le mot mystère (laisser vide pour annuler) :");
-    if (word && word.trim().length > 0) {
-        initGame(word.trim());
-    }
-});
+
 
 
 // --- SESSION RESTORATION HELPERS ---
@@ -605,6 +635,8 @@ window.restoreGuess = function(guessWord) {
         }
         updateGrid();
     }
+    
+    updateMaxScoreDisplay();
 };
 
 window.loadGuessesFromSession = function() {
@@ -617,8 +649,316 @@ window.loadGuessesFromSession = function() {
         }
     }
 };
+
+// --- SCORING SYSTEM ---
+
+function calculateScore(victory, attemptsUsed, lastGuess) {
+    let score = 0;
+    const maxGuesses = 6;
+    
+    if (victory) {
+        // 1. Tile Points (All Red) -> Length * 10
+        score += targetWord.length * 10;
+        
+        // 2. Win Bonus
+        score += 50;
+        
+        // 3. Speed Bonus (Unused Lines)
+        const unusedLines = maxGuesses - attemptsUsed;
+        score += unusedLines * 30;
+        
+    } else {
+        // Defeat: Count Reds and Yellows in last guess
+        const targetParts = targetWord.split("");
+        const guessParts = lastGuess.split("");
+        let reds = 0;
+        let yellows = 0;
+        
+        // First pass: Reds
+        for (let i = 0; i < targetWord.length; i++) {
+            if (guessParts[i] === targetParts[i]) {
+                reds++;
+                targetParts[i] = null;
+                guessParts[i] = null;
+            }
+        }
+        
+        // Second pass: Yellows
+        for (let i = 0; i < targetWord.length; i++) {
+            if (guessParts[i] && targetParts.includes(guessParts[i])) {
+                yellows++;
+                const idx = targetParts.indexOf(guessParts[i]);
+                targetParts[idx] = null;
+            }
+        }
+        
+        score += (reds * 10) + (yellows * 5);
+    }
+    
+    return score;
+}
+
+window.calculateScore = calculateScore;
+
+function updateMaxScoreDisplay() {
+    const display = document.getElementById('max-score-display');
+    if (!display) return;
+    
+    if (isGameOver) return; 
+    
+    // Calculate Max Possible Score from current state
+    // Assume next guess is a win
+    const nextAttemptIndex = guesses.length + 1; // 1-based
+    const maxGuesses = 6;
+    
+    if (nextAttemptIndex > maxGuesses) {
+        display.textContent = "0";
+        return;
+    }
+    
+    // Max Score = Win on next attempt
+    const tilePoints = wordLength * 10;
+    const winBonus = 50;
+    const unusedLines = maxGuesses - nextAttemptIndex;
+    const speedBonus = unusedLines * 30;
+    
+    const maxScore = tilePoints + winBonus + speedBonus;
+    display.textContent = maxScore;
+}
+
 // Lancer le jeu (sauf si mode privé, on attend le lobby)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('mode') !== 'private') {
     initGame();
 }
+
+// --- SCORING ANIMATIONS ---
+
+window.isScoringAnimationPlaying = false;
+
+function animateScoring(victory, lastRowIndex, lastGuess, onComplete) {
+    window.isScoringAnimationPlaying = true;
+    const row = grid.children[lastRowIndex];
+    const tiles = row.children;
+    
+    let delay = 0;
+
+    // 1. Animate Tile Points (Red/Green = +10, Yellow = +5)
+    Array.from(tiles).forEach((tile, i) => {
+        setTimeout(() => {
+            let points = 0;
+            if (tile.classList.contains('correct')) points = 10;
+            else if (tile.classList.contains('present')) points = 5;
+            
+            if (points > 0) {
+                showFloatingScore(tile, `+${points}`);
+            }
+        }, delay);
+        delay += 150; // Cascade effect
+    });
+
+    delay += 500;
+
+    // 2. Victory Bonuses
+    if (victory) {
+        // Win Bonus
+        setTimeout(() => {
+            showBigFloatingScore("+50");
+        }, delay);
+        delay += 1000;
+
+        // Eco Bonuses (Unused lines)
+        const maxGuesses = 6;
+        for (let i = lastRowIndex + 1; i < maxGuesses; i++) {
+            const emptyRow = grid.children[i];
+            // Capture index for closure
+            const rowIndex = i; 
+            setTimeout(() => {
+                emptyRow.classList.add('row-highlight-eco');
+                // Show +30 in the middle of the row
+                // Use the 3rd tile (index 2) as anchor for 5-letter words, or middle
+                const middleTile = emptyRow.children[Math.floor(emptyRow.children.length / 2)];
+                if (middleTile) {
+                    showFloatingScore(middleTile, "+30", "eco-score");
+                }
+            }, delay);
+            delay += 400;
+        }
+    }
+
+    // 3. Finish
+    setTimeout(() => {
+        window.isScoringAnimationPlaying = false;
+        onComplete();
+    }, delay + 500);
+}
+
+function showFloatingScore(element, text, extraClass = "") {
+    const rect = element.getBoundingClientRect();
+    const popup = document.createElement('div');
+    popup.textContent = text;
+    popup.className = `score-popup ${extraClass}`;
+    
+    // Position absolute relative to document
+    popup.style.left = `${rect.left + rect.width / 2 + window.scrollX}px`;
+    popup.style.top = `${rect.top + window.scrollY}px`;
+    
+    // Center horizontally
+    popup.style.marginLeft = "-20px"; 
+
+    document.body.appendChild(popup);
+    
+    // Remove after animation
+    setTimeout(() => {
+        popup.remove();
+    }, 1500);
+}
+
+function showBigFloatingScore(text) {
+    const popup = document.createElement('div');
+    popup.textContent = text;
+    popup.className = 'big-score-popup';
+    document.body.appendChild(popup);
+    
+    setTimeout(() => {
+        popup.remove();
+    }, 2000);
+}
+
+// --- MODE TEMPS LOGIC ---
+
+let pressureTimerInterval = null;
+let chronoDuration = 30; // Default
+
+window.setChronoDuration = function(seconds) {
+    chronoDuration = seconds;
+};
+
+window.triggerPressureTimer = function(opponentRowIndex) {
+    if (isGameOver) return;
+    
+    const currentRowIndex = guesses.length;
+    
+    // Only trigger if opponent finished a row >= my current row
+    // (Meaning they are moving to next row, or are already ahead)
+    if (opponentRowIndex < currentRowIndex) return;
+
+    // If timer already running, do nothing (pressure is already on)
+    if (pressureTimerInterval) return;
+
+    if (currentRowIndex >= MAX_GUESSES) return;
+
+    const row = grid.children[currentRowIndex];
+    
+    // Create Timer UI
+    let timeLeft = chronoDuration;
+    const timerDisplay = document.createElement('div');
+    timerDisplay.className = 'timer-display';
+    timerDisplay.textContent = timeLeft;
+    row.appendChild(timerDisplay);
+    
+    pressureTimerInterval = setInterval(() => {
+        timeLeft--;
+        timerDisplay.textContent = timeLeft;
+        
+        if (timeLeft <= 0) {
+            clearInterval(pressureTimerInterval);
+            pressureTimerInterval = null;
+            timerDisplay.remove();
+            submitSkippedGuess();
+        }
+    }, 1000);
+};
+
+window.clearPressureTimer = function() {
+    if (pressureTimerInterval) {
+        clearInterval(pressureTimerInterval);
+        pressureTimerInterval = null;
+    }
+    // Remove UI
+    const timers = document.querySelectorAll('.timer-display');
+    timers.forEach(t => t.remove());
+};
+
+function submitSkippedGuess() {
+    // Fill current guess with dummy data to skip the turn
+    const dummyGuess = Array(wordLength).fill("!"); 
+    const dummyString = dummyGuess.join("");
+    
+    // Update UI to show gray/skipped
+    const row = grid.children[guesses.length];
+    Array.from(row.children).forEach(tile => {
+        tile.textContent = "-";
+        tile.classList.add('absent'); // Gray
+        tile.classList.add('skipped'); // New class for styling
+        tile.classList.add('flip'); // Animate
+    });
+    
+    guesses.push(dummyString);
+    
+    // Send to multiplayer (all absent pattern)
+    if (typeof window.sendMultiplayerGuess === 'function') {
+        const pattern = Array(wordLength).fill('0').join('');
+        window.sendMultiplayerGuess(pattern, guesses.length - 1);
+    }
+    
+    // Check Game Over (Defeat by exhaustion)
+    if (guesses.length === MAX_GUESSES) {
+        const isMultiplayer = new URLSearchParams(window.location.search).get('mode') === 'private';
+        const score = calculateScore(false, guesses.length, dummyString);
+        
+        // Trigger Animation then End Game
+        animateScoring(false, guesses.length - 1, dummyString, () => {
+            if (isMultiplayer && window.handleMultiplayerEnd) {
+                window.handleMultiplayerEnd(false, targetWord, score);
+            } else {
+                showEndScreen(false, targetWord, null, score);
+            }
+        });
+        isGameOver = true;
+    } else {
+        // Move to next line
+        currentGuess = Array(wordLength).fill("");
+        // Restore hints?
+        updateHintsFromHistory();
+        if (currentHints[0]) currentGuess[0] = currentHints[0];
+        updateGrid();
+    }
+}
+
+// --- FORCED ANIMATION FOR MULTIPLAYER END ---
+
+window.getLastValidGuess = function() {
+    for (let i = guesses.length - 1; i >= 0; i--) {
+        // Check if guess is dummy (skipped)
+        // In submitSkippedGuess: const dummyGuess = Array(wordLength).fill("!");
+        if (!guesses[i].includes("!")) {
+            return { index: i, word: guesses[i] };
+        }
+    }
+    return null;
+};
+
+window.forceEndRoundAnimation = function(onComplete) {
+    if (isGameOver) {
+        onComplete();
+        return;
+    }
+    
+    isGameOver = true;
+    
+    // Stop any active timer
+    if (typeof clearPressureTimer === 'function') {
+        clearPressureTimer();
+    }
+    
+    const lastValid = window.getLastValidGuess();
+    
+    if (lastValid) {
+        // Animate scoring for this row
+        animateScoring(false, lastValid.index, lastValid.word, onComplete);
+    } else {
+        // No valid guesses made yet
+        onComplete();
+    }
+};

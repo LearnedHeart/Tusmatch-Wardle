@@ -8,7 +8,8 @@ let isHost = false;
 let roomChannel = null;
 let playerCount = 0; // Track number of players for cleanup logic
 let currentAvatarIndex = 1;
-let selectedGameMode = 'libre';
+let selectedGameMode = 'preums';
+let currentChronoDuration = 30; // Default duration
 let lastRoundVictory = false; // Track local victory state for round end display
 
 // --- DOM ELEMENTS ---
@@ -68,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Game Mode Selector Logic
         const modeOptions = document.querySelectorAll('.mode-option');
+        const chronoSettings = document.getElementById('chrono-settings');
+
         modeOptions.forEach(option => {
             option.addEventListener('click', () => {
                 if (option.classList.contains('disabled')) return;
@@ -78,6 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 option.classList.add('selected');
                 // Update variable
                 selectedGameMode = option.dataset.mode;
+
+                // Show/Hide Chrono Settings
+                if (selectedGameMode === 'temps') {
+                    chronoSettings.classList.remove('hidden');
+                } else {
+                    chronoSettings.classList.add('hidden');
+                }
             });
         });
         
@@ -188,12 +198,23 @@ async function createGame() {
         
         const mot = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
 
+        // Prefix the word with the game mode to sync it with all players
+        // Format: "MODE:WORD" or "MODE:DURATION:WORD"
+        const modePrefix = (selectedGameMode || 'preums').toUpperCase();
+        let motWithMode = `${modePrefix}:${mot}`;
+
+        if (selectedGameMode === 'temps') {
+            const durationInput = document.getElementById('chrono-duration');
+            const duration = durationInput ? durationInput.value : 30;
+            motWithMode = `${modePrefix}:${duration}:${mot}`;
+        }
+
         // 3. Créer la partie
         const { data: partyData, error: partyError } = await supabaseClient
             .from('parties')
             .insert({ 
                 code: code, 
-                mot_a_trouver: mot, 
+                mot_a_trouver: motWithMode, 
                 statut: 'attente' 
             })
             .select()
@@ -423,12 +444,74 @@ async function launchGame() {
 
 function startGameMultiplayer(mot) {
     lastRoundVictory = false;
-    lobbyOverlay.classList.add('hidden');
-    // Lancer le jeu avec le mot imposé
-    initGame(mot);
     
-    // Initialiser l'interface des adversaires
+    // 1. Hide End Modal if open
+    const endModal = document.getElementById('endModal');
+    if (endModal) endModal.classList.add('hidden');
+
+    // 2. Clear local session guesses for this room
+    if (currentRoomCode) {
+        sessionStorage.removeItem('tusmatch_guesses_' + currentRoomCode);
+    }
+
+    // 3. Hide Lobby
+    lobbyOverlay.classList.add('hidden');
+    
+    // 4. Parse Mode from Word (Format: "MODE:WORD" or "MODE:DURATION:WORD")
+    let realWord = mot;
+    let duration = 30; // Default
+
+    if (mot.includes(':')) {
+        const parts = mot.split(':');
+        // Update global mode variable based on the prefix
+        const modePrefix = parts[0].toLowerCase();
+        if (['preums', 'libre', 'temps'].includes(modePrefix)) {
+            selectedGameMode = modePrefix;
+        }
+        
+        if (modePrefix === 'temps' && parts.length === 3) {
+            duration = parseInt(parts[1], 10);
+            realWord = parts[2];
+            currentChronoDuration = duration; // Store for next round
+        } else {
+            realWord = parts[1];
+        }
+    }
+
+    // Set global duration for game.js
+    if (typeof window.setChronoDuration === 'function') {
+        window.setChronoDuration(duration);
+    }
+
+    // 5. Lancer le jeu avec le mot imposé
+    initGame(realWord);
+    
+    // 6. Update Sidebar Mode Display
+    const modeDisplay = document.getElementById('sidebar-game-mode');
+    if (modeDisplay) {
+        const displayMode = selectedGameMode === 'temps' ? 'CHRONO' : 
+                            selectedGameMode === 'preums' ? 'PREMIER' : 
+                            selectedGameMode.toUpperCase();
+        modeDisplay.textContent = displayMode;
+    }
+    
+    // 7. Initialiser l'interface des adversaires
     setupOpponentsUI();
+
+    // 8. Show Sidebar & Toggle
+    const sidebar = document.getElementById('ingame-sidebar');
+    if (sidebar) sidebar.classList.remove('hidden');
+    
+    const btnToggle = document.getElementById('btn-toggle-sidebar');
+    if (btnToggle) btnToggle.classList.remove('hidden');
+    
+    // 9. Update list immediately
+    if (currentRoomCode) {
+        supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single()
+            .then(({data}) => {
+                if(data) refreshPlayerList(data.id);
+            });
+    }
 }
 
 async function setupOpponentsUI() {
@@ -594,6 +677,14 @@ function handleOpponentGuess(essai) {
             else tiles[i].classList.add('absent');
         }
     }
+
+    // --- MODE TEMPS TRIGGER ---
+    if (selectedGameMode === 'temps') {
+        // If an opponent finishes a line, trigger pressure timer for me
+        if (typeof window.triggerPressureTimer === 'function') {
+            window.triggerPressureTimer(essai.numero_ligne);
+        }
+    }
 }
 
 function showTypingIndicator(payload) {
@@ -610,7 +701,8 @@ function showTypingIndicator(payload) {
 
 // --- GAME END & RESTART LOGIC ---
 
-window.handleMultiplayerEnd = async function(victory, word) {
+// Renamed from handleMultiplayerEnd to separate notification from UI
+window.notifyMultiplayerFinish = async function(victory, word, roundScore) {
     if (!myPlayerId || !currentRoomCode) return;
 
     lastRoundVictory = victory;
@@ -620,13 +712,14 @@ window.handleMultiplayerEnd = async function(victory, word) {
         a_fini: true
     };
     
-    if (victory) {
-        // Increment victories
-        const { data: me } = await supabaseClient.from('joueurs').select('victoires, score').eq('id', myPlayerId).single();
-        if (me) {
+    // Fetch current stats to update score
+    const { data: me } = await supabaseClient.from('joueurs').select('victoires, score').eq('id', myPlayerId).single();
+    if (me) {
+        if (victory) {
             updates.victoires = (me.victoires || 0) + 1;
-            updates.score = (me.score || 0) + 10; // +10 pts for win
         }
+        // Add calculated round score
+        updates.score = (me.score || 0) + (roundScore || 0);
     }
 
     await supabaseClient
@@ -634,12 +727,43 @@ window.handleMultiplayerEnd = async function(victory, word) {
         .update(updates)
         .eq('id', myPlayerId);
 
-    // 2. Trigger Round End Sequence (Countdown) if I won
-    if (victory) {
-        const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
-        if (party) {
-            // Set fin_round_at to 5 seconds from now
-            const finTime = new Date(Date.now() + 5000).toISOString();
+    // 2. Trigger Round End Sequence
+    // Logic depends on Game Mode
+    // "Temps" mode behaves like "Preums" (Race mode)
+    const isLibre = (selectedGameMode === 'libre');
+    
+    // Check if I should trigger the end
+    let shouldTriggerEnd = false;
+    
+    const { data: party } = await supabaseClient.from('parties').select('id, statut').eq('code', currentRoomCode).single();
+    if (party) {
+        const { data: players } = await supabaseClient.from('joueurs').select('*').eq('partie_id', party.id);
+        
+        // Note: my status is already updated to true above, so I am included in this check
+        const allFinished = players.every(p => p.a_fini);
+        const isRoundOver = party.statut === 'fin_manche';
+
+        if (isRoundOver) {
+            // Already over, nothing to do here. 
+            // The subscription will handle the UI via handleRoundEnd
+            return;
+        }
+
+        if (isLibre) {
+            // Libre: End only if ALL finished
+            if (allFinished) {
+                shouldTriggerEnd = true;
+            }
+        } else {
+            // Preums OR Temps: End if I won OR if ALL finished
+            if (victory || allFinished) {
+                shouldTriggerEnd = true;
+            }
+        }
+
+        if (shouldTriggerEnd) {
+            // Increase delay to 10s to allow for animations (approx 4-5s) + reading time (5s)
+            const finTime = new Date(Date.now() + 10000).toISOString();
             await supabaseClient
                 .from('parties')
                 .update({ 
@@ -648,54 +772,15 @@ window.handleMultiplayerEnd = async function(victory, word) {
                 })
                 .eq('id', party.id);
             
-            // Show End Screen immediately for winner
-            const { data: players } = await supabaseClient.from('joueurs').select('*').eq('partie_id', party.id);
-            if (typeof showEndScreen === 'function') {
-                showEndScreen(true, word, players);
-            }
-        }
-    } else {
-        // If I lost, check if everyone else has finished
-        const { data: party } = await supabaseClient.from('parties').select('id, statut').eq('code', currentRoomCode).single();
-        if (party) {
-             const { data: players } = await supabaseClient
-                .from('joueurs')
-                .select('*')
-                .eq('partie_id', party.id);
-             
-             const allFinished = players.every(p => p.a_fini);
-             const isRoundOver = party.statut === 'fin_manche';
-
-             if (allFinished && !isRoundOver) {
-                // Everyone finished but no one triggered win (Everyone Lost case)
-                // Trigger end immediately
-                const finTime = new Date().toISOString();
-                await supabaseClient
-                    .from('parties')
-                    .update({ 
-                        statut: 'fin_manche',
-                        fin_round_at: finTime
-                    })
-                    .eq('id', party.id);
-                
-                // Show End Screen with word
-                if (typeof showEndScreen === 'function') {
-                    showEndScreen(false, word, players);
-                }
-             } else if (isRoundOver) {
-                // Round already over, show everything
-                if (typeof showEndScreen === 'function') {
-                    showEndScreen(false, word, players);
-                }
-             } else {
-                // Others still playing -> WAIT and HIDE WORD
-                if (typeof showEndScreen === 'function') {
-                    showEndScreen(false, null, players); // Pass null to hide word
-                }
-             }
+            // We do NOT call showEndScreen here anymore.
+            // We wait for the subscription to 'fin_manche' to trigger handleRoundEnd
         }
     }
 };
+
+// Kept for backward compatibility if needed, but game.js now calls notifyMultiplayerFinish
+window.handleMultiplayerEnd = window.notifyMultiplayerFinish; 
+
 
 window.triggerMultiplayerRestart = async function() {
     // This function is now called automatically by the host client when timer ends
@@ -707,7 +792,17 @@ window.triggerMultiplayerRestart = async function() {
 
     // Choisir un nouveau mot
     if (typeof COMMON_WORDS === 'undefined' || COMMON_WORDS.length === 0) await loadDictionaries();
-    const mot = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
+    const rawMot = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
+    
+    // Prefix with current mode
+    const modePrefix = (selectedGameMode || 'preums').toUpperCase();
+    let mot = `${modePrefix}:${rawMot}`;
+
+    if (selectedGameMode === 'temps') {
+        // Use stored duration or fallback to 30
+        const duration = currentChronoDuration || 30;
+        mot = `${modePrefix}:${duration}:${rawMot}`;
+    }
     
     // Retrouver l'ID de la partie
     const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
@@ -907,36 +1002,7 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// Override startGameMultiplayer to show the list
-const originalStartGameMultiplayer = window.startGameMultiplayer;
-window.startGameMultiplayer = function(mot) {
-    // Hide End Modal if open
-    const endModal = document.getElementById('endModal');
-    if (endModal) endModal.classList.add('hidden');
 
-    // Clear local session guesses for this room to avoid reloading old game state
-    if (currentRoomCode) {
-        sessionStorage.removeItem('tusmatch_guesses_' + currentRoomCode);
-    }
-
-    lobbyOverlay.classList.add('hidden');
-    initGame(mot);
-    setupOpponentsUI();
-    
-    // Show Sidebar
-    document.getElementById('ingame-sidebar').classList.remove('hidden');
-    // Show Toggle Button (remove hidden class so CSS media queries apply)
-    const btnToggle = document.getElementById('btn-toggle-sidebar');
-    if (btnToggle) btnToggle.classList.remove('hidden');
-    
-    // Update list immediately
-    if (currentRoomCode) {
-        supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single()
-            .then(({data}) => {
-                if(data) refreshPlayerList(data.id);
-            });
-    }
-};
 
 // --- EVENT LISTENERS FIX ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -1157,8 +1223,34 @@ async function rejoinSession(code, playerId) {
         
         // Restore Game State
         if (typeof initGame === 'function') {
-            // Initialize game with the correct word
-            await initGame(party.mot_a_trouver);
+            // Initialize game with the correct word (handling mode prefix)
+            let word = party.mot_a_trouver;
+            if (word.includes(':')) {
+                const parts = word.split(':');
+                const modePrefix = parts[0].toLowerCase();
+                if (['preums', 'libre', 'temps'].includes(modePrefix)) {
+                    selectedGameMode = modePrefix;
+                }
+                
+                if (modePrefix === 'temps' && parts.length === 3) {
+                    currentChronoDuration = parseInt(parts[1], 10);
+                    word = parts[2];
+                    // Apply duration
+                    if (typeof window.setChronoDuration === 'function') {
+                        window.setChronoDuration(currentChronoDuration);
+                    }
+                } else {
+                    word = parts[1];
+                }
+            }
+            
+            await initGame(word);
+            
+            // Update Sidebar Mode Display
+            const modeDisplay = document.getElementById('sidebar-game-mode');
+            if (modeDisplay) {
+                modeDisplay.textContent = selectedGameMode || 'PREUMS';
+            }
             
             // Restore guesses from session storage
             if (typeof window.loadGuessesFromSession === 'function') {
@@ -1230,7 +1322,7 @@ const getAvatarUrl = window.getAvatarUrl;
 let roundTimerInterval = null;
 
 async function handleRoundEnd(finRoundAt) {
-    // 1. Fetch players for scoreboard
+    // 1. Fetch players for scoreboard (Initial fetch)
     const { data: party } = await supabaseClient.from('parties').select('id, mot_a_trouver').eq('code', currentRoomCode).single();
     if (!party) return;
 
@@ -1239,41 +1331,134 @@ async function handleRoundEnd(finRoundAt) {
         .select('*')
         .eq('partie_id', party.id);
 
-    // 2. Show End Screen (Force show even if playing)
-    if (typeof showEndScreen === 'function') {
-        // Use locally tracked victory state, fallback to false if not set
-        // This ensures that if I finished and lost, I don't see a victory screen
-        // just because a_fini is true.
-        const victory = lastRoundVictory; 
-        
-        showEndScreen(victory, party.mot_a_trouver, players);
-    }
-
-    // 3. Start Countdown
-    const btn = document.getElementById('restartBtn');
-    if (btn) {
-        btn.disabled = true;
-        btn.classList.add('btn-disabled');
-    }
-
-    if (roundTimerInterval) clearInterval(roundTimerInterval);
-
-    roundTimerInterval = setInterval(() => {
-        const now = new Date().getTime();
-        const end = new Date(finRoundAt).getTime();
-        const diff = end - now;
-
-        if (diff <= 0) {
-            clearInterval(roundTimerInterval);
-            if (btn) btn.textContent = "Lancement...";
-            
-            // Trigger restart if Host
-            if (isHost) {
-                triggerMultiplayerRestart();
-            }
-        } else {
-            const seconds = Math.ceil(diff / 1000);
-            if (btn) btn.textContent = `Prochaine manche dans ${seconds}s...`;
+    // Helper to show screen
+    const proceedToShowScreen = async () => {
+        // Calculate my score based on LAST VALID GUESS
+        let myScore = 0;
+        if (typeof window.calculateScore === 'function' && typeof guesses !== 'undefined' && typeof targetWord !== 'undefined') {
+             let lastGuess = "";
+             // Use helper if available
+             if (typeof window.getLastValidGuess === 'function') {
+                 const valid = window.getLastValidGuess();
+                 if (valid) lastGuess = valid.word;
+             } else {
+                 lastGuess = guesses.length > 0 ? guesses[guesses.length - 1] : "";
+             }
+             
+             myScore = window.calculateScore(lastRoundVictory, guesses.length, lastGuess);
         }
-    }, 1000);
+
+        // CRITICAL: If I am the loser (and haven't updated DB), I need to update my score in DB now.
+        const me = players.find(p => p.id === myPlayerId);
+        if (me && !me.a_fini) {
+             await supabaseClient.from('joueurs').update({ 
+                 score: (me.score || 0) + myScore,
+                 a_fini: true 
+             }).eq('id', myPlayerId);
+        }
+
+        // --- SYNC BARRIER START ---
+        
+        // 1. Show "Waiting" Screen immediately
+        if (typeof showEndScreen === 'function') {
+            // Pass null as word to trigger "Waiting" state
+            showEndScreen(lastRoundVictory, null, players, myScore);
+        }
+
+        // 2. Send "ANIMATION_DONE" Signal
+        await supabaseClient.from('essais').insert({
+            partie_id: party.id,
+            joueur_id: myPlayerId,
+            numero_ligne: 99,
+            pattern: 'ANIMATION_DONE'
+        });
+
+        // 3. Wait for ALL players to finish animation
+        const checkSync = setInterval(async () => {
+            // Safety: If time is up, force proceed
+            const now = new Date().getTime();
+            const end = new Date(finRoundAt).getTime();
+            
+            // Count signals
+            const { count: signalCount } = await supabaseClient
+                .from('essais')
+                .select('*', { count: 'exact', head: true })
+                .eq('partie_id', party.id)
+                .eq('pattern', 'ANIMATION_DONE');
+            
+            // Count current players
+            const { count: currentTotalPlayers } = await supabaseClient
+                .from('joueurs')
+                .select('*', { count: 'exact', head: true })
+                .eq('partie_id', party.id);
+
+            // Proceed if all ready OR timeout reached
+            if ((signalCount >= currentTotalPlayers) || (now >= end)) {
+                clearInterval(checkSync);
+                
+                // 4. Fetch Final Scores (Everyone should be updated now)
+                const { data: finalPlayers } = await supabaseClient
+                    .from('joueurs')
+                    .select('*')
+                    .eq('partie_id', party.id);
+
+                // 5. Show FINAL Screen
+                if (typeof showEndScreen === 'function') {
+                    const victory = lastRoundVictory; 
+                    let displayWord = party.mot_a_trouver;
+                    if (displayWord && displayWord.includes(':')) {
+                        const parts = displayWord.split(':');
+                        displayWord = parts.length === 3 ? parts[2] : parts[1];
+                    }
+                    showEndScreen(victory, displayWord, finalPlayers, myScore);
+                }
+                
+                // 6. Start Countdown Logic
+                const btn = document.getElementById('restartBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.classList.add('btn-disabled');
+                }
+            
+                if (roundTimerInterval) clearInterval(roundTimerInterval);
+            
+                roundTimerInterval = setInterval(() => {
+                    const nowLoop = new Date().getTime();
+                    const endLoop = new Date(finRoundAt).getTime();
+                    const diff = endLoop - nowLoop;
+            
+                    if (diff <= 0) {
+                        clearInterval(roundTimerInterval);
+                        if (btn) btn.textContent = "Lancement...";
+                        if (isHost) triggerMultiplayerRestart();
+                    } else {
+                        const seconds = Math.ceil(diff / 1000);
+                        if (btn) btn.textContent = `Prochaine manche dans ${seconds}s...`;
+                    }
+                }, 1000);
+            }
+        }, 1000); // Check every 1s
+        // --- SYNC BARRIER END ---
+    };
+
+    // 2. Trigger Animation if needed
+    if (window.isScoringAnimationPlaying) {
+        // I am the winner (or finished naturally just now)
+        // Wait for animation to finish
+        const checkAnim = setInterval(() => {
+            if (!window.isScoringAnimationPlaying) {
+                clearInterval(checkAnim);
+                proceedToShowScreen();
+            }
+        }, 100);
+    } else if (!lastRoundVictory && typeof window.forceEndRoundAnimation === 'function') {
+        // I am the loser (or finished long ago?)
+        // Force animation
+        window.forceEndRoundAnimation(() => {
+            proceedToShowScreen();
+        });
+    } else {
+        // Fallback
+        proceedToShowScreen();
+    }
 }
