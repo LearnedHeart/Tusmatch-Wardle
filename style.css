@@ -68,25 +68,27 @@ button {
 }
 
 .theme-switch {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    padding: 10px 20px;
+    position: fixed; /* Changed from absolute to fixed */
+    top: 15px;
+    right: 15px;
+    padding: 8px 12px; /* Slightly smaller padding */
     border-radius: 8px;
     background: var(--tile-bg);
     color: var(--text-color);
     border: 2px solid var(--tile-border);
     font-weight: 600;
+    font-size: 0.8rem; /* Smaller font */
     transition: transform 0.2s;
-    z-index: 200;
+    z-index: 2000; /* High z-index to stay on top */
+    backdrop-filter: blur(5px); /* Nice effect */
 }
 .theme-switch:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.06); }
 
 /* Bouton Retour: couleurs similaires aux tuiles, discret pour ne pas inciter au départ */
 .back-btn {
-    position: absolute;
-    left: 20px;
-    top: 20px;
+    position: fixed; /* Changed from absolute to fixed */
+    left: 15px;
+    top: 15px;
     padding: 8px 12px;
     border-radius: 8px;
     background: var(--tile-bg);
@@ -98,7 +100,8 @@ button {
     align-items: center;
     justify-content: center;
     transition: transform 0.12s, box-shadow 0.12s;
-    z-index: 200; /* Ensure it's clickable */
+    z-index: 2000; /* Ensure it's clickable and on top */
+    backdrop-filter: blur(5px);
 }
 
 /* Score Popup Animation */
@@ -646,4 +649,102 @@ body.claire .key.absent {
 
 .bounce {
     animation: bounce 0.5s;
+}
+
+/* --- MOBILE OPTIMIZATIONS --- */
+@media (max-width: 600px) {
+    body {
+        overflow: hidden; /* Prevent scrolling on game screen */
+        padding-top: 50px; /* Space for top buttons */
+    }
+
+    .game-container {
+        height: calc(100vh - 50px);
+        justify-content: space-between;
+        padding-bottom: 10px;
+        gap: 5px;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Grid Adjustments */
+    .grid {
+        gap: 3px;
+        flex-shrink: 1; /* Allow shrinking */
+        max-height: 55vh; /* Limit height to leave room for keyboard */
+        width: 100%;
+        justify-content: center;
+        padding: 0 5px; /* Add some padding */
+    }
+
+    .row {
+        gap: 3px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .tile {
+        /* Dynamic sizing based on column count to prevent overflow */
+        /* 90vw total width / number of columns, minus gap approximation */
+        width: calc((100vw - 20px) / var(--cols, 5) - 4px);
+        height: calc((100vw - 20px) / var(--cols, 5) - 4px);
+        
+        /* Cap max size for larger mobile screens */
+        max-width: 55px;
+        max-height: 55px;
+        
+        font-size: 1.5rem;
+        border-width: 2px;
+    }
+
+    /* Keyboard Adjustments */
+    .keyboard {
+        width: 100%;
+        padding: 0 2px;
+        gap: 4px;
+        margin-bottom: 5px;
+        flex-shrink: 0; /* Don't shrink keyboard */
+    }
+
+    .key-row {
+        gap: 3px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .key {
+        padding: 0;
+        height: 52px; /* Taller touch targets */
+        font-size: 1.1rem;
+        border-radius: 4px;
+        flex: 1; /* Distribute space evenly */
+    }
+
+    .key.large {
+        font-size: 0.8rem;
+        flex: 1.5;
+    }
+
+    /* Adjust Top Buttons */
+    .theme-switch {
+        top: 10px;
+        right: 10px;
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    .back-btn, .lobby-back-btn {
+        top: 10px;
+        left: 10px;
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+    
+    /* Scale down reaction bar */
+    .reaction-wrapper {
+        right: 5px;
+        transform: translateY(-50%) scale(0.8);
+        transform-origin: right center;
+    }
 }

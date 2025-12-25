@@ -19,6 +19,7 @@ Match privés :
     tablau score et wins (sur le coté pas fenêtre) XXX
     recommencer partie reste dnas la meme partie XXX
 
+
     Timer (on off) XXX
     quand l'un a fait une ligne, l'autre a X temps pour la faire aussi XXX
     système de points par lignes et de gagnant XXX
@@ -27,6 +28,18 @@ Match privés :
     inviter un joueur, garde la même partie + un joueur VVVV
     5 players max XXX. 
     
+
+
+
+
+
+
+rajouter réactions des personnages (multiplayer)
+faire nom de domaine privé 
+régler interfaces mobile 
+régler input chrono (only int)
+
+
 
 
 Match public : commes matchs privés mais nouveau groupe a chaque fois 
@@ -51,5 +64,3 @@ Objets, indices
 Dans le menu share, faire un créer puzzle avec le mot que tu veux 
 partager avec un lien 
 
-rajouter PHEW quand c'est à la dernière ligner
-rajouter réactions des personnages (multiplayer)

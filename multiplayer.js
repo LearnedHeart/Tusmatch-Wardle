@@ -422,6 +422,13 @@ function subscribeToRoom(partyId) {
                 handleOpponentStateUpdate(payload);
             }
         })
+        // Écouter les réactions
+        .on('broadcast', { event: 'reaction' }, (event) => {
+            const payload = event.payload;
+            if (payload && payload.id !== myPlayerId) {
+                showReaction(payload.type, payload.id);
+            }
+        })
         .subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 console.log("Connecté au canal temps réel !");
@@ -1462,3 +1469,78 @@ async function handleRoundEnd(finRoundAt) {
         proceedToShowScreen();
     }
 }
+
+// --- REACTIONS LOGIC ---
+
+const REACTION_SVGS = {
+    happy: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#FFD93D"/><circle cx="10" cy="14" r="2" fill="#5C3D2E"/><circle cx="22" cy="14" r="2" fill="#5C3D2E"/><path d="M10 20 Q16 26 22 20" stroke="#5C3D2E" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="7" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/><circle cx="25" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/></svg>`,
+    sad: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#89CFF0"/><path d="M9 14 Q11 12 13 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M19 14 Q21 12 23 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M12 22 Q16 18 20 22" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="23" cy="18" r="1.5" fill="#4FA3D1"/></svg>`,
+    angry: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#FF6B6B"/><path d="M9 13 L13 15" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/><path d="M23 13 L19 15" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="17" r="1.5" fill="#8B0000"/><circle cx="21" cy="17" r="1.5" fill="#8B0000"/><path d="M13 22 H19" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/></svg>`,
+    surprised: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#C780FA"/><circle cx="10" cy="14" r="2" fill="#4A148C"/><circle cx="22" cy="14" r="2" fill="#4A148C"/><ellipse cx="16" cy="22" rx="3" ry="4" fill="#4A148C"/><path d="M8 10 Q10 8 12 10" stroke="#4A148C" stroke-width="1" fill="none"/><path d="M20 10 Q22 8 24 10" stroke="#4A148C" stroke-width="1" fill="none"/></svg>`
+};
+
+window.toggleReactions = function() {
+    const bar = document.getElementById('reaction-bar');
+    if (bar) {
+        bar.classList.toggle('open');
+    }
+};
+
+window.sendReaction = function(type) {
+    if (!roomChannel) return;
+    
+    // Close menu after selection
+    const bar = document.getElementById('reaction-bar');
+    if (bar) bar.classList.remove('open');
+    
+    // Show locally immediately
+    showReaction(type, myPlayerId);
+    
+    roomChannel.send({
+        type: 'broadcast',
+        event: 'reaction',
+        payload: { type: type, id: myPlayerId }
+    });
+};
+
+window.showReaction = function(type, playerId) {
+    const svgContent = REACTION_SVGS[type];
+    if (!svgContent) return;
+
+    // Find target element to float from
+    let targetEl = null;
+    
+    if (playerId === myPlayerId) {
+        // My reaction: float from center screen
+        targetEl = document.querySelector('.game-container'); 
+    } else {
+        // Opponent reaction: float from their card
+        targetEl = document.getElementById(`opp-${playerId}`);
+    }
+
+    if (!targetEl) return;
+
+    const reactionEl = document.createElement('div');
+    reactionEl.className = 'floating-reaction';
+    reactionEl.innerHTML = svgContent;
+    
+    // Position logic
+    const rect = targetEl.getBoundingClientRect();
+    
+    // If it's an opponent card
+    if (targetEl.id && targetEl.id.startsWith('opp-')) {
+        reactionEl.style.left = (rect.left + rect.width / 2 - 30) + 'px';
+        reactionEl.style.top = (rect.top + rect.height / 2) + 'px';
+    } else {
+        // Me (center screen)
+        reactionEl.style.left = '50%';
+        reactionEl.style.top = '50%';
+        reactionEl.style.transform = 'translate(-50%, -50%)';
+    }
+
+    document.body.appendChild(reactionEl);
+    
+    setTimeout(() => {
+        reactionEl.remove();
+    }, 2500);
+};

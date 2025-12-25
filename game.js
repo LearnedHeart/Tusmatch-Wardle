@@ -99,7 +99,7 @@ function getDailyWord(offset = 0) {
     // Choisir un index aléatoire dans la liste
     const index = Math.floor(rand * COMMON_WORDS.length);
     
-    console.log(`Date: ${dateString}, Seed: ${seed}, Index: ${index}, Mot: ${COMMON_WORDS[index]}`);
+    // console.log(`Date: ${dateString}, Seed: ${seed}, Index: ${index}, Mot: ${COMMON_WORDS[index]}`);
     return COMMON_WORDS[index];
 }
 
@@ -129,7 +129,7 @@ async function initGame(customWord = null) {
         
         if (dailyWord) {
             targetWord = dailyWord.toUpperCase();
-            console.log("Mot du jour chargé (Local) :", targetWord);
+            // console.log("Mot du jour chargé (Local) :", targetWord);
         } else {
             // Fallback ultime
             targetWord = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
@@ -510,7 +510,11 @@ function showEndScreen(victory, word, scores = null, myScore = null) {
         
         if (victory) {
             endTitle.textContent = "Victoire !";
-            endMessage.innerHTML = `Bien joué, tu as trouvé le mot !<br><br><strong>Score: ${myScore || 0} pts</strong>`;
+            let msg = `Bien joué, tu as trouvé le mot !`;
+            if (guesses.length === MAX_GUESSES) {
+                msg += `<br><span style="font-size: 1.2em;">PHEW 😮‍💨</span>`;
+            }
+            endMessage.innerHTML = `${msg}<br><br><strong>Score: ${myScore || 0} pts</strong>`;
             wordDisplay.style.display = 'none';
         } else {
             endTitle.textContent = "Défaite...";
