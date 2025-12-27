@@ -22,6 +22,8 @@
     <link rel="preload" as="image" href="assets/10.gif">
     <link rel="preload" as="image" href="assets/11.gif">
     <link rel="preload" as="image" href="assets/12.gif">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6243220405591714"
+     crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -34,6 +36,29 @@
             <div class="modal-actions">
                 <button id="confirm-leave" class="btn-confirm">Quitter</button>
                 <button id="cancel-leave" class="btn-cancel">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Custom Alert Modal -->
+    <div id="custom-alert-modal" class="custom-modal-overlay hidden" style="z-index: 2000;">
+        <div class="custom-modal-box">
+            <h3 id="custom-alert-title">Message</h3>
+            <p id="custom-alert-message" style="margin-top: 10px; opacity: 0.8;"></p>
+            <div class="modal-actions" style="justify-content: center;">
+                <button id="custom-alert-ok" class="btn-confirm" style="width: 100%;">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Custom Confirm Modal -->
+    <div id="custom-confirm-modal" class="custom-modal-overlay hidden" style="z-index: 2000;">
+        <div class="custom-modal-box">
+            <h3 id="custom-confirm-title">Confirmation</h3>
+            <p id="custom-confirm-message" style="margin-top: 10px; opacity: 0.8;"></p>
+            <div class="modal-actions">
+                <button id="custom-confirm-yes" class="btn-confirm">Oui</button>
+                <button id="custom-confirm-no" class="btn-cancel">Non</button>
             </div>
         </div>
     </div>
@@ -141,9 +166,53 @@
             <rect x="3" y="14" width="7" height="7"></rect>
         </svg>
     </button>
+    
+    <!-- Chat Toggle Button -->
+    <button id="btn-toggle-chat" class="sidebar-toggle hidden" style="left: auto; right: 0; top: 50%; bottom: auto; transform: translateY(-50%); background: var(--key-bg); border-radius: 10px 0 0 10px; border-right: none; width: 50px; height: 60px; padding: 0; box-shadow: -2px 0 10px rgba(0,0,0,0.2); z-index: 3000;">
+        <div id="chat-notification-dot" class="hidden"></div>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+    </button>
+
     <button id="themeToggle" class="theme-switch">Thème</button>
 
-    
+    <!-- CHAT PANEL -->
+    <div id="chat-panel" class="hidden">
+        <div class="chat-header">
+            <span>Tchat de la salle</span>
+            <button id="btn-close-chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        
+        <div id="chat-messages">
+            <div class="chat-system-msg">Bienvenue dans le tchat !</div>
+        </div>
+
+        <!-- Moved Reactions Here -->
+        <div class="chat-reactions-bar">
+            <button class="reaction-btn" onclick="sendReaction('happy')" title="Content">
+                <svg viewBox="0 0 32 32" width="24" height="24"><circle cx="16" cy="16" r="14" fill="#FFD93D"/><circle cx="10" cy="14" r="2" fill="#5C3D2E"/><circle cx="22" cy="14" r="2" fill="#5C3D2E"/><path d="M10 20 Q16 26 22 20" stroke="#5C3D2E" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="7" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/><circle cx="25" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/></svg>
+            </button>
+            <button class="reaction-btn" onclick="sendReaction('sad')" title="Triste">
+                <svg viewBox="0 0 32 32" width="24" height="24"><circle cx="16" cy="16" r="14" fill="#89CFF0"/><path d="M9 14 Q11 12 13 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M19 14 Q21 12 23 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M12 22 Q16 18 20 22" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="23" cy="18" r="1.5" fill="#4FA3D1"/></svg>
+            </button>
+            <button class="reaction-btn" onclick="sendReaction('angry')" title="Énervé">
+                <svg viewBox="0 0 32 32" width="24" height="24"><circle cx="16" cy="16" r="14" fill="#FF6B6B"/><path d="M9 13 L13 15" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/><path d="M23 13 L19 15" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="17" r="1.5" fill="#8B0000"/><circle cx="21" cy="17" r="1.5" fill="#8B0000"/><path d="M13 22 H19" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <button class="reaction-btn" onclick="sendReaction('surprised')" title="Surpris">
+                <svg viewBox="0 0 32 32" width="24" height="24"><circle cx="16" cy="16" r="14" fill="#C780FA"/><circle cx="10" cy="14" r="2" fill="#4A148C"/><circle cx="22" cy="14" r="2" fill="#4A148C"/><ellipse cx="16" cy="22" rx="3" ry="4" fill="#4A148C"/><path d="M8 10 Q10 8 12 10" stroke="#4A148C" stroke-width="1" fill="none"/><path d="M20 10 Q22 8 24 10" stroke="#4A148C" stroke-width="1" fill="none"/></svg>
+            </button>
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chat-input-field" placeholder="Message..." maxlength="100">
+            <button id="btn-send-chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+        </div>
+    </div>
 
 
 

@@ -132,11 +132,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Hook pour le typing (Broadcast)
-        document.addEventListener('keydown', () => {
+        document.addEventListener('keydown', (e) => {
+            // Ignore typing if in chat input
+            if (e.target.id === 'chat-input-field') return;
+            
             if (currentRoomCode && !isGameOver) {
                 sendTypingSignal();
             }
         });
+
+        // Initialize Chat
+        initChat();
     }
 });
 
@@ -373,18 +379,145 @@ async function refreshPlayerList(partyId) {
 }
 
 function updatePlayerListUI(players) {
-    playersList.innerHTML = players.map(p => {
-        const avatarUrl = getAvatarUrl(p.pseudo);
-        const displayName = getDisplayName(p.pseudo);
-        const hostIcon = p.est_host ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>` : '';
+    const ingamePlayersList = document.getElementById('ingame-players-content');
+    
+    // Sécurité : on revérifie si on est host via la session
+    if (sessionStorage.getItem('tusmatch_is_host') === 'true') {
+        isHost = true;
+    }
+
+    const renderList = (container) => {
+        if (!container) return;
+        container.innerHTML = players.map(p => {
+            const avatarUrl = getAvatarUrl(p.pseudo);
+            const displayName = getDisplayName(p.pseudo);
+            const hostIcon = p.est_host ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>` : '';
+            
+            // Bouton Kick
+            let kickBtn = '';
+            const amIHost = (isHost === true || isHost === 'true');
+            const isTargetHost = (p.est_host === true || p.est_host === 'true');
+
+            // Debug: Afficher un petit point rouge si je suis host pour vérifier
+            // if (amIHost) console.log("Je suis host, affichage boutons...");
+
+            if (amIHost && !isTargetHost) {
+                kickBtn = `
+                <button class="btn-kick" data-id="${p.id}" title="Exclure" style="pointer-events: auto;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                </button>`;
+            }
+
+            // Style différent pour le lobby vs in-game
+            const isLobby = container.id === 'players-list';
+            const cardStyle = isLobby 
+                ? `padding: 8px; border-bottom: 1px solid var(--tile-border); display: flex; align-items: center; gap: 10px;`
+                : `padding: 8px; border-bottom: 1px solid var(--tile-border); display: flex; align-items: center; gap: 10px; min-width: 200px; background: rgba(0,0,0,0.2); border-radius: 8px;`;
+
+            return `
+            <div class="player-card-item" style="${cardStyle}">
+                <img src="${avatarUrl}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--tile-border);">
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; text-align: left;">${displayName}</span>
+                ${hostIcon}
+                ${kickBtn}
+            </div>`;
+        }).join('');
+    };
+
+    // Update Lobby List
+    renderList(playersList);
+    // Update In-Game List
+    renderList(ingamePlayersList);
+
+    // Ajouter les event listeners pour les boutons kick (Globalement)
+    document.querySelectorAll('.btn-kick').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetBtn = e.target.closest('.btn-kick');
+            if (targetBtn) {
+                const playerId = targetBtn.dataset.id;
+                kickPlayer(playerId);
+            }
+        });
+    });
+}
+
+// --- CUSTOM ALERTS ---
+
+function showCustomAlert(title, message) {
+    const modal = document.getElementById('custom-alert-modal');
+    if (!modal) {
+        alert(message); // Fallback
+        return;
+    }
+    document.getElementById('custom-alert-title').textContent = title;
+    document.getElementById('custom-alert-message').textContent = message;
+    modal.classList.remove('hidden');
+    
+    const btnOk = document.getElementById('custom-alert-ok');
+    const closeHandler = () => {
+        modal.classList.add('hidden');
+        btnOk.removeEventListener('click', closeHandler);
+    };
+    btnOk.addEventListener('click', closeHandler);
+}
+
+function showCustomConfirm(title, message, onConfirm) {
+    const modal = document.getElementById('custom-confirm-modal');
+    if (!modal) {
+        if (confirm(message)) onConfirm(); // Fallback
+        return;
+    }
+    document.getElementById('custom-confirm-title').textContent = title;
+    document.getElementById('custom-confirm-message').textContent = message;
+    modal.classList.remove('hidden');
+    
+    const btnYes = document.getElementById('custom-confirm-yes');
+    const btnNo = document.getElementById('custom-confirm-no');
+    
+    const cleanup = () => {
+        modal.classList.add('hidden');
+        btnYes.replaceWith(btnYes.cloneNode(true)); // Remove listeners
+        btnNo.replaceWith(btnNo.cloneNode(true));
+    };
+
+    // Re-select after clone
+    document.getElementById('custom-confirm-yes').addEventListener('click', () => {
+        cleanup();
+        onConfirm();
+    });
+    
+    document.getElementById('custom-confirm-no').addEventListener('click', () => {
+        cleanup();
+    });
+}
+
+async function kickPlayer(playerId) {
+    showCustomConfirm("Exclure le joueur ?", "Voulez-vous vraiment exclure ce joueur de la partie ?", async () => {
+        // 1. Récupérer le partyId avant de supprimer (pour refresh)
+        // On peut le trouver via currentRoomCode ou via le DOM, mais le plus sûr est de le chercher
+        // ou d'utiliser une variable globale si on l'a stockée.
+        // Ici on va faire un refresh optimiste en supprimant l'élément du DOM tout de suite
         
-        return `
-        <div style="padding: 8px; border-bottom: 1px solid var(--tile-border); display: flex; align-items: center; gap: 10px;">
-            <img src="${avatarUrl}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--tile-border);">
-            <span>${displayName}</span>
-            ${hostIcon}
-        </div>`;
-    }).join('');
+        const { error } = await supabaseClient
+            .from('joueurs')
+            .delete()
+            .eq('id', playerId);
+
+        if (error) {
+            console.error("Erreur kick:", error);
+            showCustomAlert("Erreur", "Impossible d'exclure le joueur.");
+        } else {
+            // Force refresh immédiat pour l'hôte
+            if (currentRoomCode) {
+                const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
+                if (party) refreshPlayerList(party.id);
+            }
+        }
+    });
 }
 
 // --- REALTIME & JEU ---
@@ -392,11 +525,25 @@ function updatePlayerListUI(players) {
 function subscribeToRoom(partyId) {
     roomChannel = supabaseClient.channel('room_' + partyId);
 
+    // Enable chat button if hidden
+    const btnToggleChat = document.getElementById('btn-toggle-chat');
+    if (btnToggleChat) btnToggleChat.classList.remove('hidden');
+
     roomChannel
         // Écouter les nouveaux joueurs (INSERT), départs (DELETE) et changements de statut/host (UPDATE)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'joueurs', filter: `partie_id=eq.${partyId}` }, (payload) => {
             if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE' || payload.eventType === 'UPDATE') {
                 refreshPlayerList(partyId);
+
+                // Si je suis le joueur supprimé (Kick)
+                if (payload.eventType === 'DELETE' && payload.old.id === myPlayerId) {
+                    // CRUCIAL: Clear session to prevent auto-rejoin as ghost
+                    sessionStorage.clear();
+                    
+                    showCustomAlert("Exclu", "Vous avez été exclu de la partie.");
+                    // Wait for user to click OK or just redirect after delay
+                    setTimeout(() => { window.location.href = 'index.html'; }, 2000);
+                }
             }
         })
         // Écouter le lancement du jeu ou la fin de manche
@@ -435,6 +582,13 @@ function subscribeToRoom(partyId) {
                 if (typeof window.showReaction === 'function') {
                     window.showReaction(payload.type, payload.id);
                 }
+            }
+        })
+        // Écouter les messages du chat
+        .on('broadcast', { event: 'chat_message' }, (event) => {
+            const payload = event.payload;
+            if (payload && payload.senderId !== myPlayerId) {
+                addChatMessage(payload.sender, payload.text, false, payload.isSystem, payload.msgType);
             }
         })
         .subscribe((status) => {
@@ -723,6 +877,21 @@ function showTypingIndicator(payload) {
 window.notifyMultiplayerFinish = async function(victory, word, roundScore) {
     if (!myPlayerId || !currentRoomCode) return;
 
+    // SECURITY CHECK: Verify if I am still a valid player in the DB
+    // This prevents kicked players from triggering game end
+    const { data: meCheck, error: meError } = await supabaseClient
+        .from('joueurs')
+        .select('id')
+        .eq('id', myPlayerId)
+        .single();
+
+    if (meError || !meCheck) {
+        console.warn("Security Check Failed: Player not found in DB. Aborting victory signal.");
+        sessionStorage.clear();
+        window.location.href = 'index.html';
+        return;
+    }
+
     lastRoundVictory = victory;
 
     // 1. Update my status in DB
@@ -920,13 +1089,18 @@ function updateIngamePlayerList(players) {
     // Sort by score descending for ranking
     const sortedPlayers = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
 
+    // Sécurité Host
+    if (sessionStorage.getItem('tusmatch_is_host') === 'true') {
+        isHost = true;
+    }
+
     list.innerHTML = sortedPlayers.map((p, index) => {
         const isMe = p.id === myPlayerId;
-        const isHost = p.est_host;
+        const isTargetHost = p.est_host;
         const avatarUrl = getAvatarUrl(p.pseudo);
         const displayName = getDisplayName(p.pseudo);
         
-        const hostIcon = isHost ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>` : '';
+        const hostIcon = isTargetHost ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>` : '';
         
         const statusIcon = p.a_fini 
             ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` 
@@ -940,14 +1114,30 @@ function updateIngamePlayerList(players) {
         if (rank === 1) rankColor = '#FFD700'; // Gold
         if (rank === 2) rankColor = '#C0C0C0'; // Silver
         if (rank === 3) rankColor = '#CD7F32'; // Bronze
+
+        // Kick Button Logic
+        let kickBtn = '';
+        const amIHost = (isHost === true || isHost === 'true');
+        
+        if (amIHost && !isTargetHost) {
+             kickBtn = `
+                <button class="btn-kick" data-id="${p.id}" title="Exclure" style="pointer-events: auto; margin-left: auto;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                </button>`;
+        }
         
         return `
-            <div class="ingame-player-card ${isMe ? 'is-me' : ''}">
+            <div class="ingame-player-card ${isMe ? 'is-me' : ''}" style="position: relative; padding-right: ${kickBtn ? '40px' : '10px'};">
                 <div style="color:${rankColor}; font-weight:bold; margin-right:8px; min-width:20px; font-size:0.9rem;">#${rank}</div>
                 <img src="${avatarUrl}" class="ingame-player-avatar-img">
-                <div class="ingame-player-info">
-                    <div class="ingame-player-name">
-                        ${displayName} ${hostIcon}
+                <div class="ingame-player-info" style="flex: 1; min-width: 0;">
+                    <div class="ingame-player-name" style="display: flex; align-items: center; gap: 5px;">
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayName}</span> 
+                        ${hostIcon}
                     </div>
                     <div class="ingame-player-status">
                         ${isMe ? '<span style="font-size:0.8em; opacity:0.7; margin-right:4px;">(Moi)</span>' : ''} 
@@ -955,9 +1145,22 @@ function updateIngamePlayerList(players) {
                         <span style="margin-left:4px; font-weight:bold;">${score}pts</span>
                     </div>
                 </div>
+                ${kickBtn ? `<div style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%); z-index: 10;">${kickBtn}</div>` : ''}
             </div>
         `;
     }).join('');
+
+    // Add Listeners
+    list.querySelectorAll('.btn-kick').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card click if any
+            const targetBtn = e.target.closest('.btn-kick');
+            if (targetBtn) {
+                const playerId = targetBtn.dataset.id;
+                kickPlayer(playerId);
+            }
+        });
+    });
 }
 
 // Override refreshPlayerList to update both lists
@@ -989,8 +1192,41 @@ window.refreshPlayerList = async function(partyId) {
 
         updatePlayerListUI(players);
         updateIngamePlayerList(players);
+        
+        // NEW: Sync Opponents Grids (Remove kicked players immediately)
+        syncOpponentsGrids(players);
     }
 };
+
+function syncOpponentsGrids(players) {
+    const container = document.getElementById('opponents-container');
+    if (!container) return;
+
+    // 1. Remove kicked players (Cards in DOM but not in DB list)
+    const existingCards = container.querySelectorAll('.opponent-card');
+    existingCards.forEach(card => {
+        const id = card.id.replace('opp-', '');
+        const playerExists = players.find(p => p.id === id);
+        
+        // If player is gone OR it's me (shouldn't be there anyway but safety check)
+        if (!playerExists || id === myPlayerId) {
+            card.remove();
+        }
+    });
+
+    // 2. Update container count class for sizing
+    const opponentCount = players.filter(p => p.id !== myPlayerId).length;
+    
+    // Remove old count classes
+    container.classList.forEach(cls => {
+        if (cls.startsWith('count-')) container.classList.remove(cls);
+    });
+    // Add new count class
+    container.classList.add(`count-${opponentCount}`);
+    
+    // (Optional) We could add new players here too, but setupOpponentsUI handles init.
+    // If we want to support mid-game joiners fully, we would add them here.
+}
 
 // --- CLEANUP ON CLOSE ---
 /* 
@@ -1204,7 +1440,7 @@ async function rejoinSession(code, playerId) {
     currentRoomCode = code;
     // myPlayerId = playerId; // Don't set it yet, verify first
     myPseudo = sessionStorage.getItem('tusmatch_pseudo');
-    // isHost = sessionStorage.getItem('tusmatch_is_host') === 'true'; // Verify later
+    isHost = sessionStorage.getItem('tusmatch_is_host') === 'true'; // Restore host status immediately
     
     try {
         // Fetch party details to get the word and status
@@ -1229,22 +1465,13 @@ async function rejoinSession(code, playerId) {
             .single();
 
         if (!player) {
-            console.log("Player not found in DB (maybe deleted on close). Re-joining...");
-            // Re-join as new player
-            // We try to keep the same pseudo and host status if possible (but host might be taken)
-            // If I was host, I try to reclaim it if no one else is.
-            
-            // Check if there is a host currently
-            const { data: players } = await supabaseClient.from('joueurs').select('est_host').eq('partie_id', party.id);
-            const hasHost = players && players.some(p => p.est_host);
-            
-            const shouldBeHost = !hasHost; // If no host, I become host
-            
-            await joinLobbyAsPlayer(party.id, myPseudo, shouldBeHost);
-            // joinLobbyAsPlayer sets myPlayerId
-            sessionStorage.setItem('tusmatch_player_id', myPlayerId);
-            sessionStorage.setItem('tusmatch_is_host', shouldBeHost);
-            isHost = shouldBeHost;
+            console.log("Player not found in DB (maybe kicked or deleted). Clearing session.");
+            // Si le joueur n'existe plus en base, c'est qu'il a été kické ou que la DB a été nettoyée.
+            // On ne doit PAS le recréer automatiquement, sinon le kick ne sert à rien (il revient en fantôme).
+            sessionStorage.clear();
+            showCustomAlert("Session Expirée", "Vous n'êtes plus dans la partie (Exclu ou session expirée).");
+            setTimeout(() => { window.location.href = 'index.html'; }, 2000);
+            return;
         } else {
             // Player exists
             myPlayerId = player.id;
@@ -1505,6 +1732,8 @@ async function handleRoundEnd(finRoundAt) {
 
 // --- REACTIONS LOGIC ---
 
+// --- REACTIONS LOGIC ---
+
 const REACTION_SVGS = {
     happy: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#FFD93D"/><circle cx="10" cy="14" r="2" fill="#5C3D2E"/><circle cx="22" cy="14" r="2" fill="#5C3D2E"/><path d="M10 20 Q16 26 22 20" stroke="#5C3D2E" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="7" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/><circle cx="25" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/></svg>`,
     sad: `<svg viewBox="0 0 32 32" width="100%" height="100%"><circle cx="16" cy="16" r="14" fill="#89CFF0"/><path d="M9 14 Q11 12 13 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M19 14 Q21 12 23 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M12 22 Q16 18 20 22" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="23" cy="18" r="1.5" fill="#4FA3D1"/></svg>`,
@@ -1515,70 +1744,153 @@ const REACTION_SVGS = {
 window.sendReaction = function(type) {
     if (!roomChannel) return;
     
-    // Show locally immediately
-    showReaction(type, myPlayerId);
-    
+    if (!REACTION_SVGS[type]) return;
+
+    // Send as chat message with type 'reaction'
     roomChannel.send({
         type: 'broadcast',
-        event: 'reaction',
-        payload: { type: type, id: myPlayerId }
-    });
-};
-
-window.showReaction = function(type, playerId) {
-    const svgContent = REACTION_SVGS[type];
-    if (!svgContent) return;
-
-    // Mobile Check: If mobile and not in grid view, ignore opponent reactions
-    const isMobile = window.innerWidth <= 900;
-    const isOpponentsOpen = document.body.classList.contains('opponents-open');
-    
-    if (isMobile && playerId !== myPlayerId && !isOpponentsOpen) {
-        return;
-    }
-
-    // Find target element to float from
-    let targetEl = null;
-    
-    if (playerId === myPlayerId) {
-        // My reaction: float from center screen
-        targetEl = document.querySelector('.game-container'); 
-    } else {
-        // Opponent reaction: float from their card
-        targetEl = document.getElementById(`opp-${playerId}`);
-    }
-
-    // Safety check: if element is hidden (display:none), rect will be all 0
-    if (!targetEl || targetEl.offsetParent === null) {
-        // If I am sending it, force it to show on center even if something is wrong
-        if (playerId === myPlayerId) {
-             targetEl = document.body;
-        } else {
-             return; // Don't show if target is hidden
+        event: 'chat_message',
+        payload: {
+            senderId: myPlayerId,
+            sender: myPseudo,
+            text: type, // Send the key (e.g., 'happy')
+            isSystem: false,
+            msgType: 'reaction' // New field to identify reactions
         }
-    }
+    });
 
-    const reactionEl = document.createElement('div');
-    reactionEl.className = 'floating-reaction';
-    reactionEl.innerHTML = svgContent;
-    
-    // Position logic
-    const rect = targetEl.getBoundingClientRect();
-    
-    // If it's an opponent card
-    if (targetEl.id && targetEl.id.startsWith('opp-')) {
-        reactionEl.style.left = (rect.left + rect.width / 2 - 30) + 'px';
-        reactionEl.style.top = (rect.top + rect.height / 2) + 'px';
-    } else {
-        // Me (center screen)
-        reactionEl.style.left = '50%';
-        reactionEl.style.top = '50%';
-        reactionEl.style.transform = 'translate(-50%, -50%)';
-    }
-
-    document.body.appendChild(reactionEl);
-    
-    setTimeout(() => {
-        reactionEl.remove();
-    }, 2500);
+    // Add locally
+    addChatMessage(myPseudo, type, true, false, 'reaction');
 };
+
+// Deprecated: showReaction (removed floating logic)
+window.showReaction = function(type, playerId) {
+    // No-op: Reactions are now chat messages
+};
+
+// --- CHAT SYSTEM ---
+
+function initChat() {
+    const chatPanel = document.getElementById('chat-panel');
+    const btnToggleChat = document.getElementById('btn-toggle-chat');
+    const btnSendChat = document.getElementById('btn-send-chat');
+    const chatInput = document.getElementById('chat-input-field');
+    const btnCloseChat = document.getElementById('btn-close-chat');
+
+    if (!chatPanel || !btnToggleChat) return;
+
+    // Toggle Chat
+    btnToggleChat.addEventListener('click', () => {
+        toggleChat();
+    });
+
+    // Close Chat Button
+    if (btnCloseChat) {
+        btnCloseChat.addEventListener('click', () => {
+            toggleChat();
+        });
+    }
+
+    // Send Message
+    btnSendChat.addEventListener('click', sendChatMessage);
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendChatMessage();
+        }
+    });
+
+    // Show toggle button
+    btnToggleChat.classList.remove('hidden');
+    
+    // Ensure button is above lobby
+    btnToggleChat.style.zIndex = '2500';
+}
+
+function toggleChat() {
+    const chatPanel = document.getElementById('chat-panel');
+    const btnToggleChat = document.getElementById('btn-toggle-chat');
+    
+    chatPanel.classList.toggle('hidden');
+    
+    if (!chatPanel.classList.contains('hidden')) {
+        // Chat opened
+        btnToggleChat.classList.remove('has-unread');
+        // Focus input
+        setTimeout(() => document.getElementById('chat-input-field').focus(), 100);
+    }
+}
+
+function sendChatMessage() {
+    const chatInput = document.getElementById('chat-input-field');
+    const text = chatInput.value.trim();
+    
+    if (!text) return;
+    if (!roomChannel) return;
+
+    // Send Broadcast
+    roomChannel.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: {
+            senderId: myPlayerId,
+            sender: myPseudo,
+            text: text,
+            isSystem: false
+        }
+    });
+
+    // Add locally
+    addChatMessage(myPseudo, text, true);
+    
+    // Clear input
+    chatInput.value = '';
+}
+
+function addChatMessage(sender, text, isSelf = false, isSystem = false, msgType = 'text') {
+    const chatMessages = document.getElementById('chat-messages');
+    const btnToggleChat = document.getElementById('btn-toggle-chat');
+    const chatPanel = document.getElementById('chat-panel');
+
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-message';
+    if (isSelf) msgDiv.classList.add('self');
+    if (isSystem) msgDiv.classList.add('system');
+
+    if (isSystem) {
+        msgDiv.textContent = text;
+    } else if (msgType === 'reaction') {
+        // Render SVG Reaction
+        const strong = document.createElement('strong');
+        strong.textContent = isSelf ? 'Moi' : sender;
+        msgDiv.appendChild(strong);
+
+        const reactionContainer = document.createElement('div');
+        reactionContainer.style.width = '40px';
+        reactionContainer.style.height = '40px';
+        reactionContainer.innerHTML = REACTION_SVGS[text] || '❓';
+        msgDiv.appendChild(reactionContainer);
+        
+        // Make message background transparent for reactions if desired, or keep bubble
+        msgDiv.style.display = 'flex';
+        msgDiv.style.flexDirection = 'column';
+        msgDiv.style.alignItems = isSelf ? 'flex-end' : 'flex-start';
+    } else {
+        const strong = document.createElement('strong');
+        strong.textContent = isSelf ? 'Moi' : sender;
+        msgDiv.appendChild(strong);
+        
+        const span = document.createElement('span');
+        span.textContent = text;
+        msgDiv.appendChild(span);
+    }
+
+    chatMessages.appendChild(msgDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Notification if chat is closed and message is not from me
+    if (!isSelf && chatPanel.classList.contains('hidden')) {
+        btnToggleChat.classList.add('has-unread');
+    }
+}

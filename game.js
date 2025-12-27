@@ -190,6 +190,9 @@ async function initGame(customWord = null) {
 document.addEventListener("keydown", (e) => {
     if (isGameOver) return;
     
+    // Ignore input if typing in chat
+    if (document.activeElement && document.activeElement.id === 'chat-input-field') return;
+
     const key = e.key;
     if (key === "Enter") handleEnter();
     else if (key === "Backspace") handleBackspace();

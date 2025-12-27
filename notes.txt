@@ -35,7 +35,6 @@ Match privés :
 
 
 rajouter réactions des personnages (multiplayer)
-faire nom de domaine privé 
 régler interfaces mobile 
 régler input chrono (only int)
 
