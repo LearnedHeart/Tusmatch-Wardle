@@ -194,8 +194,12 @@ async function createGame() {
         
         myPseudo = pseudo;
         
-        // 1. Générer un code unique (5 caractères)
-        const code = Math.random().toString(36).substring(2, 7).toUpperCase();
+        // 1. Générer un code unique (4 caractères, sans 0 ni O)
+        const chars = "ABCDEFGHIJKLMNPQRSTUVWXYZ123456789";
+        let code = "";
+        for (let i = 0; i < 4; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
         
         // 2. Choisir un mot aléatoire (On utilise la liste locale de game.js)
         // Assurons-nous que les dictionnaires sont chargés
@@ -1370,8 +1374,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (pseudoInput && codeInput) {
         const pseudos = ['COOLKID67', 'WORDSLAYER', 'TUSMASTER', 'WORDLE_KING', 'GUESS_WHO', 'ALPHA_WOLF', 'NINJA_WORD'];
-        // Codes réalistes (Alphanumérique 5 chars)
-        const codes = ['XJ9KZ', 'A7B2P', 'K9L1M', 'P4R5T', '9X2Y1', 'M3G4L', 'Q8W7E', 'Z1X2C'];
+        // Codes réalistes (Alphanumérique 4 chars, sans 0/O)
+        const codes = ['XJ9K', 'A7B2', 'K9L1', 'P4R5', '9X2Y', 'M3G4', 'Q8W7', 'Z1X2'];
         
         animateInputPlaceholder(pseudoInput, pseudos, '');
         animateInputPlaceholder(codeInput, codes, '');
