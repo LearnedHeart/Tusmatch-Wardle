@@ -1181,6 +1181,7 @@ body.claire .key.absent {
         background: white;
         border: 2px solid var(--tile-border);
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        margin-right: 40px;
     }
     #btn-login-google img {
         margin: 0; /* Remove gap */
