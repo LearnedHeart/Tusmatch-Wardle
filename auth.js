@@ -58,6 +58,25 @@ async function updateUserProfile(name, avatarIndex) {
         if (error) throw error;
         
         currentUser = data.user;
+        
+        // Sync Pseudo AND Avatar to User Stats (for Leaderboard/Friends)
+        try {
+            await supabaseClient
+                .from('user_stats')
+                .update({ pseudo: name, avatar_index: avatarIndex })
+                .eq('user_id', currentUser.id);
+        } catch (e) {
+            console.warn("Failed to sync avatar to DB, trying pseudo only...", e);
+            await supabaseClient
+                .from('user_stats')
+                .update({ pseudo: name })
+                .eq('user_id', currentUser.id);
+        }
+
+        // Save to Session Storage for Multiplayer
+        sessionStorage.setItem('tusmatch_pseudo', name);
+        sessionStorage.setItem('tusmatch_saved_avatar', avatarIndex);
+
         updateUI(currentUser);
         closeProfileModal();
         
@@ -97,6 +116,12 @@ function updateUI(user) {
             
             if (userNameSpan) userNameSpan.textContent = name;
             if (userAvatarImg) userAvatarImg.src = avatar;
+
+            // Save to Session Storage for Multiplayer Pre-fill
+            sessionStorage.setItem('tusmatch_pseudo', name);
+            if (user.user_metadata.custom_avatar_index) {
+                sessionStorage.setItem('tusmatch_saved_avatar', user.user_metadata.custom_avatar_index);
+            }
             
             // Update Multiplayer Inputs if they exist
             const lobbyPseudoInput = document.getElementById('player-pseudo');
@@ -113,11 +138,57 @@ function updateUI(user) {
             initInviteListener();
             // Check for pending invites (missed while offline)
             checkPendingInvites();
+            
+            // Auto-sync Pseudo to DB (ensure it's not null)
+            syncUserStats(user);
         }
     } else {
         // LOGGED OUT
         if (loginBtn) loginBtn.classList.remove('hidden');
         if (userProfileDiv) userProfileDiv.classList.add('hidden');
+    }
+}
+
+async function syncUserStats(user) {
+    if (!user) return;
+    const name = user.user_metadata.display_name || user.user_metadata.full_name || user.email.split('@')[0];
+    const avatarIdx = user.user_metadata.custom_avatar_index || 1;
+    
+    try {
+        // Check if pseudo is already set to avoid unnecessary writes
+        const { data: stats } = await supabaseClient
+            .from('user_stats')
+            .select('pseudo, avatar_index') // Try to select avatar_index too
+            .eq('user_id', user.id)
+            .single();
+            
+        // Update if pseudo OR avatar is different (assuming avatar_index column exists or we try to write it)
+        // We'll try to update both. If avatar_index column is missing, this might fail, but we'll catch it.
+        // Actually, to be safe, let's just update.
+        
+        const updates = { pseudo: name };
+        // Only add avatar_index if we think it might work (user asked for it). 
+        // We will try to update it.
+        updates.avatar_index = avatarIdx;
+
+        if (stats && (stats.pseudo !== name || stats.avatar_index !== avatarIdx)) {
+             await supabaseClient
+                .from('user_stats')
+                .update(updates)
+                .eq('user_id', user.id);
+            console.log("Profile synced to DB:", name);
+        }
+    } catch (e) {
+        console.error("Auto-sync profile failed (maybe avatar_index column missing?)", e);
+        // Fallback: try syncing ONLY pseudo if the previous one failed
+        try {
+             await supabaseClient
+                .from('user_stats')
+                .update({ pseudo: name })
+                .eq('user_id', user.id);
+        } catch (e2) {
+             console.error("Auto-sync pseudo retry failed", e2);
+        }
     }
 }
 
@@ -229,7 +300,7 @@ function injectProfileModal() {
             <div id="content-profile-friends" class="hidden" style="text-align: left;">
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <input type="text" id="add-friend-input" class="lobby-input" placeholder="Code Ami (ex: A7B2X9)" style="margin: 0; flex: 1; text-transform: uppercase;">
-                    <button id="btn-add-friend" class="lobby-btn" style="margin: 0; width: auto; padding: 0 15px;">Ajouter</button>
+                    <button id="btn-add-friend" class="lobby-btn" style="margin: 0; width: auto; padding: 0 20px; border-radius: 50px; background: var(--correct); color: white; border: none; font-weight: bold;">Ajouter</button>
                 </div>
                 
                 <div id="friends-list-container" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--tile-border); border-radius: 8px; padding: 10px;">
@@ -291,7 +362,8 @@ function openProfileModal() {
     profileAvatarIndex = meta.custom_avatar_index || 1;
     
     avatarImg.src = `assets/${profileAvatarIndex}.gif`;
-    pseudoInput.value = meta.full_name || "";
+    // Fix: Use display_name (custom) if available, otherwise full_name
+    pseudoInput.value = meta.display_name || meta.full_name || "";
     
     // Fetch and display stats
     fetchUserStats(currentUser.id);
@@ -450,11 +522,13 @@ async function loadFriendsList(containerId = 'friends-list-container') {
             // Fetch friend stats to get code
             const { data: friendStats } = await supabaseClient
                 .from('user_stats')
-                .select('friend_code')
+                .select('*')
                 .eq('user_id', friendId)
                 .single();
                 
-            const displayName = friendStats ? `Joueur ${friendStats.friend_code}` : "Inconnu";
+            const displayName = friendStats ? (friendStats.pseudo || `Joueur ${friendStats.friend_code}`) : "Inconnu";
+            const avatarIdx = (friendStats && friendStats.avatar_index) ? friendStats.avatar_index : 1;
+            const avatarUrl = `assets/${avatarIdx}.gif`;
             
             const div = document.createElement('div');
             div.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid var(--tile-border);';
@@ -475,7 +549,10 @@ async function loadFriendsList(containerId = 'friends-list-container') {
             }
             
             div.innerHTML = `
-                <span style="font-weight: bold;">${displayName}</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${avatarUrl}" style="width:30px; height:30px; border-radius:50%; border: 1px solid var(--tile-border);">
+                    <span style="font-weight: bold;">${displayName}</span>
+                </div>
                 ${actionBtn}
             `;
             container.appendChild(div);
@@ -528,11 +605,23 @@ window.inviteFriend = async function(friendId) {
 function initInviteListener() {
     if (!currentUser) return;
     
+    // 1. Listen for incoming invites
     supabaseClient
         .channel('public:game_invites')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'game_invites', filter: `receiver_id=eq.${currentUser.id}` }, payload => {
             const invite = payload.new;
             showInviteToast(invite);
+        })
+        .subscribe();
+
+    // 2. Listen for invite responses (Accepted/Declined)
+    supabaseClient
+        .channel(`user_notifications:${currentUser.id}`)
+        .on('broadcast', { event: 'invite_declined' }, payload => {
+            showAuthToast(`❌ ${payload.payload.decliner} a refusé l'invitation.`);
+        })
+        .on('broadcast', { event: 'invite_accepted' }, payload => {
+            showAuthToast(`✅ ${payload.payload.acceptor} a accepté l'invitation !`);
         })
         .subscribe();
 }
@@ -565,10 +654,26 @@ function showInviteToast(invite) {
 
 window.acceptInvite = async function(code, inviteId) {
     if (inviteId) {
+        // Notify Sender (Host)
+        const { data: invite } = await supabaseClient
+            .from('game_invites')
+            .select('sender_id')
+            .eq('id', inviteId)
+            .single();
+
+        if (invite) {
+            supabaseClient.channel(`user_notifications:${invite.sender_id}`).send({
+                type: 'broadcast',
+                event: 'invite_accepted',
+                payload: { acceptor: currentUser ? (currentUser.user_metadata.display_name || 'Un joueur') : 'Un joueur' }
+            });
+        }
+
         // Delete invite from DB
         await supabaseClient.from('game_invites').delete().eq('id', inviteId);
     }
-    window.location.href = `game.html?mode=private&code=${code}`;
+    // Redirect to game with auto-join param
+    window.location.href = `game.html?mode=private&code=${code}&autojoin=true`;
 };
 
 window.declineInvite = async function(inviteId) {
@@ -576,6 +681,21 @@ window.declineInvite = async function(inviteId) {
     if (toast) toast.remove();
     
     if (inviteId) {
+        // Notify Sender (Host)
+        const { data: invite } = await supabaseClient
+            .from('game_invites')
+            .select('sender_id')
+            .eq('id', inviteId)
+            .single();
+
+        if (invite) {
+            supabaseClient.channel(`user_notifications:${invite.sender_id}`).send({
+                type: 'broadcast',
+                event: 'invite_declined',
+                payload: { decliner: currentUser ? (currentUser.user_metadata.display_name || 'Un joueur') : 'Un joueur' }
+            });
+        }
+
         await supabaseClient.from('game_invites').delete().eq('id', inviteId);
     }
 };
@@ -659,7 +779,7 @@ async function loadLeaderboard(type) {
     try {
         let query = supabaseClient
             .from('user_stats')
-            .select('friend_code, daily_wins, multiplayer_wins, user_id')
+            .select('*')
             .order('daily_wins', { ascending: false })
             .limit(50);
 
@@ -682,7 +802,7 @@ async function loadLeaderboard(type) {
             // 2. Filter Query
             query = supabaseClient
                 .from('user_stats')
-                .select('friend_code, daily_wins, multiplayer_wins, user_id')
+                .select('*')
                 .in('user_id', friendIds)
                 .order('daily_wins', { ascending: false });
         }
@@ -702,7 +822,8 @@ async function loadLeaderboard(type) {
         stats.forEach((s, index) => {
             const isMe = currentUser && s.user_id === currentUser.id;
             const style = isMe ? 'background: rgba(0, 255, 0, 0.1); font-weight: bold;' : '';
-            const name = s.friend_code ? `Joueur ${s.friend_code}` : 'Inconnu';
+            // Use pseudo if available, otherwise fallback to friend_code
+            const name = s.pseudo ? s.pseudo : (s.friend_code ? `Joueur ${s.friend_code}` : 'Inconnu');
             
             html += `<tr style="${style} border-bottom: 1px solid var(--tile-border);">
                 <td style="padding: 8px;">${index + 1}</td>

@@ -149,11 +149,32 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('confirm-leave').addEventListener('click', confirmLeaveGame);
         document.getElementById('cancel-leave').addEventListener('click', closeLeaveModal);
 
-        // Auto-fill code from URL
-        const codeParam = urlParams.get('code');
-        if (codeParam) {
-            document.getElementById('lobby-code-input').value = codeParam;
+    // Auto-fill code from URL
+    const codeParam = urlParams.get('code');
+    const autoJoin = urlParams.get('autojoin');
+
+    if (codeParam) {
+        document.getElementById('lobby-code-input').value = codeParam;
+        
+        // Auto-fill pseudo from session if available
+        const savedPseudo = sessionStorage.getItem('tusmatch_pseudo');
+        if (savedPseudo) {
+            document.getElementById('player-pseudo').value = savedPseudo;
         }
+
+        if (autoJoin === 'true') {
+            // Small delay to ensure everything is loaded
+            setTimeout(() => {
+                joinGame(codeParam);
+            }, 500);
+        }
+    } else {
+        // Pre-fill pseudo anyway
+        const savedPseudo = sessionStorage.getItem('tusmatch_pseudo');
+        if (savedPseudo) {
+            document.getElementById('player-pseudo').value = savedPseudo;
+        }
+    }
 
         // Hook pour le typing (Broadcast)
         document.addEventListener('keydown', (e) => {
