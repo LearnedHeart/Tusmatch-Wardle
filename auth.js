@@ -426,23 +426,36 @@ async function fetchUserStats(userId) {
 
 async function addFriendByCode(inputId = 'add-friend-input') {
     const input = document.getElementById(inputId);
-    if (!input) return;
+    if (!input) {
+        console.error("Input not found:", inputId);
+        return;
+    }
     const code = input.value.trim().toUpperCase();
     
-    if (code.length < 6) {
+    console.log("Tentative d'ajout ami avec code:", code);
+    
+    if (code.length < 3) {
         showAuthToast("Code invalide (trop court)");
+        return;
+    }
+    
+    if (!currentUser) {
+        showAuthToast("Vous devez être connecté !");
         return;
     }
     
     input.disabled = true;
     
     try {
+        console.log("Recherche du code ami dans user_stats...");
         // 1. Find User ID from Code
         const { data: targetStats, error: findError } = await supabaseClient
             .from('user_stats')
             .select('user_id')
             .eq('friend_code', code)
             .single();
+        
+        console.log("Résultat recherche:", targetStats, findError);
             
         if (findError || !targetStats) {
             showAuthToast("Code ami introuvable !");
@@ -458,6 +471,7 @@ async function addFriendByCode(inputId = 'add-friend-input') {
             return;
         }
         
+        console.log("Insertion dans la table friends...");
         // 2. Send Request
         const { error: insertError } = await supabaseClient
             .from('friends')
@@ -466,13 +480,15 @@ async function addFriendByCode(inputId = 'add-friend-input') {
                 user_id_2: targetId,
                 status: 'pending'
             });
+        
+        console.log("Résultat insertion:", insertError);
             
         if (insertError) {
             if (insertError.code === '23505') { // Unique violation
                 showAuthToast("Déjà amis ou demande envoyée !");
             } else {
-                console.error(insertError);
-                showAuthToast("Erreur lors de l'ajout.");
+                console.error("Erreur insertion:", insertError);
+                showAuthToast("Erreur lors de l'ajout: " + insertError.message);
             }
         } else {
             showAuthToast("Demande envoyée !");
@@ -482,8 +498,8 @@ async function addFriendByCode(inputId = 'add-friend-input') {
         }
         
     } catch (e) {
-        console.error(e);
-        showAuthToast("Erreur inattendue.");
+        console.error("Exception addFriendByCode:", e);
+        showAuthToast("Erreur inattendue: " + e.message);
     }
     
     input.disabled = false;
