@@ -3,13 +3,15 @@
 // --- VARIABLES GLOBALES ---
 let myPlayerId = null;
 let myPseudo = null;
-let currentRoomCode = null;
+window.currentRoomCode = null; // Exposed for Auth/Invite system
 let isHost = false;
 let roomChannel = null;
 let playerCount = 0; // Track number of players for cleanup logic
 let currentAvatarIndex = 1;
 let selectedGameMode = 'preums';
 let currentChronoDuration = 30; // Default duration
+let maxRounds = 'inf'; // 'inf' or number
+let currentRound = 1;
 let lastRoundVictory = false; // Track local victory state for round end display
 
 // --- DOM ELEMENTS ---
@@ -26,6 +28,14 @@ const ingameRoomCode = document.getElementById('ingame-room-code');
 
 // --- INITIALISATION ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Load saved avatar preference from Auth
+    const savedAvatar = sessionStorage.getItem('tusmatch_saved_avatar');
+    if (savedAvatar) {
+        currentAvatarIndex = parseInt(savedAvatar);
+        const preview = document.getElementById('avatar-preview');
+        if (preview) preview.src = `assets/${currentAvatarIndex}.gif`;
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const mode = urlParams.get('mode');
 
@@ -96,6 +106,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+
+        // Round Slider Logic
+        const roundsSlider = document.getElementById('rounds-slider');
+        const roundsValue = document.getElementById('rounds-value');
+        if (roundsSlider && roundsValue) {
+            const updateRounds = () => {
+                const val = parseInt(roundsSlider.value);
+                roundsValue.textContent = val >= 21 ? '∞' : val;
+                maxRounds = val >= 21 ? 'inf' : val;
+            };
+            roundsSlider.addEventListener('input', updateRounds);
+            // Init
+            updateRounds();
+        }
         
         // Event Listener pour le bouton "Lancer" (Host seulement)
         btnStartGame.addEventListener('click', launchGame);
@@ -215,15 +239,27 @@ async function createGame() {
         const mot = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
 
         // Prefix the word with the game mode to sync it with all players
-        // Format: "MODE:WORD" or "MODE:DURATION:WORD"
+        // Format: "MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD"
         const modePrefix = (selectedGameMode || 'preums').toUpperCase();
-        let motWithMode = `${modePrefix}:${mot}`;
-
+        
+        let duration = 0;
         if (selectedGameMode === 'temps') {
             const durationInput = document.getElementById('chrono-duration');
-            const duration = durationInput ? durationInput.value : 30;
-            motWithMode = `${modePrefix}:${duration}:${mot}`;
+            duration = durationInput ? durationInput.value : 30;
         }
+
+        // Ensure maxRounds is set (default 'inf')
+        const slider = document.getElementById('rounds-slider');
+        if (slider) {
+            const val = parseInt(slider.value);
+            maxRounds = val >= 21 ? 'inf' : val;
+        }
+        if (!maxRounds) maxRounds = 'inf';
+        
+        // Initialize currentRound to 1
+        currentRound = 1;
+
+        let motWithMode = `${modePrefix}:${duration}:${maxRounds}:${currentRound}:${mot}`;
 
         // 3. Créer la partie
         const { data: partyData, error: partyError } = await supabaseClient
@@ -245,6 +281,7 @@ async function createGame() {
         }
 
         currentRoomCode = code;
+        window.currentRoomCode = code; // Sync global
         isHost = true;
 
         // Session Persistence
@@ -556,6 +593,8 @@ function subscribeToRoom(partyId) {
                 startGameMultiplayer(payload.new.mot_a_trouver);
             } else if (payload.new.statut === 'fin_manche' && payload.new.fin_round_at) {
                 handleRoundEnd(payload.new.fin_round_at);
+            } else if (payload.new.statut === 'finished') {
+                showEndGameRecap();
             }
         })
         // Écouter les essais des adversaires
@@ -630,23 +669,35 @@ function startGameMultiplayer(mot) {
     // 3. Hide Lobby
     lobbyOverlay.classList.add('hidden');
     
-    // 4. Parse Mode from Word (Format: "MODE:WORD" or "MODE:DURATION:WORD")
+    // 4. Parse Mode from Word (Format: "MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD")
+    // Legacy formats: "MODE:WORD" or "MODE:DURATION:WORD"
     let realWord = mot;
     let duration = 30; // Default
 
     if (mot.includes(':')) {
         const parts = mot.split(':');
-        // Update global mode variable based on the prefix
         const modePrefix = parts[0].toLowerCase();
+        
         if (['preums', 'libre', 'temps'].includes(modePrefix)) {
             selectedGameMode = modePrefix;
         }
-        
-        if (modePrefix === 'temps' && parts.length === 3) {
+
+        // Check for new format (5 parts)
+        if (parts.length >= 5) {
+            // MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD
+            duration = parseInt(parts[1], 10);
+            maxRounds = parts[2]; // 'inf' or number
+            currentRound = parseInt(parts[3], 10);
+            realWord = parts[4];
+            
+            currentChronoDuration = duration;
+        } 
+        // Legacy formats
+        else if (modePrefix === 'temps' && parts.length === 3) {
             duration = parseInt(parts[1], 10);
             realWord = parts[2];
-            currentChronoDuration = duration; // Store for next round
-        } else {
+            currentChronoDuration = duration;
+        } else if (parts.length === 2) {
             realWord = parts[1];
         }
     }
@@ -666,6 +717,13 @@ function startGameMultiplayer(mot) {
                             selectedGameMode === 'preums' ? 'PREMIER' : 
                             selectedGameMode.toUpperCase();
         modeDisplay.textContent = displayMode;
+    }
+
+    // Update Sidebar Round Info
+    const roundDisplay = document.getElementById('sidebar-round-info');
+    if (roundDisplay) {
+        const max = (maxRounds === 'inf' || !maxRounds) ? '∞' : maxRounds;
+        roundDisplay.textContent = `${currentRound} / ${max}`;
     }
     
     // 7. Initialiser l'interface des adversaires
@@ -978,6 +1036,22 @@ window.triggerMultiplayerRestart = async function() {
     // But we keep the check just in case
     if (!isHost) return; 
     
+    // Check Max Rounds
+    if (maxRounds !== 'inf' && currentRound >= parseInt(maxRounds)) {
+        // Game Over
+        const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
+        if (party) {
+            await supabaseClient
+                .from('parties')
+                .update({ statut: 'finished' })
+                .eq('id', party.id);
+        }
+        return;
+    }
+
+    // Increment Round
+    currentRound++;
+
     const btn = document.getElementById('restartBtn');
     if(btn) btn.textContent = "Lancement...";
 
@@ -987,13 +1061,14 @@ window.triggerMultiplayerRestart = async function() {
     
     // Prefix with current mode
     const modePrefix = (selectedGameMode || 'preums').toUpperCase();
-    let mot = `${modePrefix}:${rawMot}`;
-
+    
+    let duration = 0;
     if (selectedGameMode === 'temps') {
-        // Use stored duration or fallback to 30
-        const duration = currentChronoDuration || 30;
-        mot = `${modePrefix}:${duration}:${rawMot}`;
+        duration = currentChronoDuration || 30;
     }
+
+    // Format: MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD
+    let mot = `${modePrefix}:${duration}:${maxRounds}:${currentRound}:${rawMot}`;
     
     // Retrouver l'ID de la partie
     const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
@@ -1497,10 +1572,19 @@ async function rejoinSession(code, playerId) {
                     selectedGameMode = modePrefix;
                 }
                 
-                if (modePrefix === 'temps' && parts.length === 3) {
+                if (parts.length >= 5) {
+                    // MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD
+                    currentChronoDuration = parseInt(parts[1], 10);
+                    maxRounds = parts[2];
+                    currentRound = parseInt(parts[3], 10);
+                    word = parts[4];
+                    
+                    if (typeof window.setChronoDuration === 'function') {
+                        window.setChronoDuration(currentChronoDuration);
+                    }
+                } else if (modePrefix === 'temps' && parts.length === 3) {
                     currentChronoDuration = parseInt(parts[1], 10);
                     word = parts[2];
-                    // Apply duration
                     if (typeof window.setChronoDuration === 'function') {
                         window.setChronoDuration(currentChronoDuration);
                     }
@@ -1518,6 +1602,13 @@ async function rejoinSession(code, playerId) {
                                     selectedGameMode === 'preums' ? 'PREMIER' : 
                                     (selectedGameMode || 'PREMIER').toUpperCase();
                 modeDisplay.textContent = displayMode;
+            }
+
+            // Update Sidebar Round Info
+            const roundDisplay = document.getElementById('sidebar-round-info');
+            if (roundDisplay) {
+                const max = (maxRounds === 'inf' || !maxRounds) ? '∞' : maxRounds;
+                roundDisplay.textContent = `${currentRound} / ${max}`;
             }
             
             // Restore guesses from session storage
@@ -1679,7 +1770,13 @@ async function handleRoundEnd(finRoundAt) {
                     let displayWord = party.mot_a_trouver;
                     if (displayWord && displayWord.includes(':')) {
                         const parts = displayWord.split(':');
-                        displayWord = parts.length === 3 ? parts[2] : parts[1];
+                        // Handle new format: MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD
+                        if (parts.length >= 5) {
+                            displayWord = parts[4];
+                        } else {
+                            // Handle legacy formats
+                            displayWord = parts.length === 3 ? parts[2] : parts[1];
+                        }
                     }
                     showEndScreen(victory, displayWord, finalPlayers, myScore);
                 }
@@ -1898,3 +1995,275 @@ function addChatMessage(sender, text, isSelf = false, isSystem = false, msgType 
         btnToggleChat.classList.add('has-unread');
     }
 }
+
+// --- END GAME RECAP ---
+
+async function showEndGameRecap() {
+    const modal = document.getElementById('end-game-modal');
+    const scoreboard = document.getElementById('final-scoreboard');
+    const hostActions = document.getElementById('host-actions');
+    const clientMsg = document.getElementById('client-waiting-msg');
+    
+    if (!modal || !scoreboard) return;
+
+    // 1. Fetch final scores
+    const { data: party } = await supabaseClient
+        .from('parties')
+        .select('joueurs(*)')
+        .eq('code', currentRoomCode)
+        .single();
+
+    if (!party) return;
+
+    const players = party.joueurs.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    // 2. Build Scoreboard HTML
+    let html = '';
+    players.forEach((p, index) => {
+        const rank = index + 1;
+        let rankColor = '#666';
+        let medal = '';
+        if (rank === 1) { rankColor = '#FFD700'; medal = '🥇'; }
+        if (rank === 2) { rankColor = '#C0C0C0'; medal = '🥈'; }
+        if (rank === 3) { rankColor = '#CD7F32'; medal = '🥉'; }
+
+        const avatarUrl = getAvatarUrl(p.pseudo);
+        const displayName = getDisplayName(p.pseudo);
+
+        html += `
+            <div style="display: flex; align-items: center; padding: 10px; border-bottom: 1px solid var(--tile-border); background: ${p.id === myPlayerId ? 'rgba(255,255,255,0.1)' : 'transparent'};">
+                <div style="font-size: 1.5rem; width: 40px; text-align: center; color: ${rankColor};">${medal || rank}</div>
+                <img src="${avatarUrl}" style="width: 40px; height: 40px; border-radius: 50%; margin: 0 15px; border: 2px solid ${rankColor};">
+                <div style="flex: 1;">
+                    <div style="font-weight: bold; font-size: 1.1rem;">${displayName}</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7;">${p.score || 0} pts</div>
+                </div>
+            </div>
+        `;
+    });
+
+    scoreboard.innerHTML = html;
+
+    // --- UPDATE STATS ---
+    // Find my player data
+    const myData = players.find(p => p.id === myPlayerId);
+    if (myData) {
+        const myRank = players.indexOf(myData) + 1;
+        const isWinner = (myRank === 1);
+        // We need total rounds played. 
+        // We can estimate it from currentRound global variable if available, or just increment by 1 match played.
+        // The user asked for "moyenne des points par manche".
+        // So we need to know how many rounds were played in this match.
+        // currentRound holds the current round number.
+        
+        if (typeof updateMultiplayerStats === 'function') {
+            updateMultiplayerStats(isWinner, myData.score || 0, currentRound);
+        }
+    }
+
+    // 3. Show Actions based on role
+    if (isHost) {
+        hostActions.classList.remove('hidden');
+        clientMsg.classList.add('hidden');
+    } else {
+        hostActions.classList.add('hidden');
+        clientMsg.classList.remove('hidden');
+    }
+
+    modal.classList.remove('hidden');
+}
+
+// Replay Logic
+document.addEventListener('DOMContentLoaded', () => {
+    // Replay Round Slider Logic
+    const replaySlider = document.getElementById('rounds-slider-replay');
+    const replayValue = document.getElementById('rounds-value-replay');
+    if (replaySlider && replayValue) {
+        const updateReplayRounds = () => {
+            const val = parseInt(replaySlider.value);
+            replayValue.textContent = val >= 21 ? '∞' : val;
+        };
+        replaySlider.addEventListener('input', updateReplayRounds);
+        // Init
+        updateReplayRounds();
+    }
+
+    // Replay Button
+    const btnReplay = document.getElementById('btn-replay-game');
+    if (btnReplay) {
+        btnReplay.addEventListener('click', async () => {
+            if (!isHost) return;
+            
+            btnReplay.disabled = true;
+            btnReplay.textContent = "Relancement...";
+
+            // Get selected rounds
+            let newMaxRounds = 'inf';
+            if (replaySlider) {
+                const val = parseInt(replaySlider.value);
+                newMaxRounds = val >= 21 ? 'inf' : val;
+            }
+            
+            // Reset Game
+            await resetGameForReplay(newMaxRounds);
+            
+            // Hide Modal
+            document.getElementById('end-game-modal').classList.add('hidden');
+            btnReplay.disabled = false;
+            btnReplay.textContent = "Rejouer avec ces paramètres";
+        });
+    }
+
+    // Leave Final Button
+    const btnLeaveFinal = document.getElementById('btn-leave-final');
+    if (btnLeaveFinal) {
+        btnLeaveFinal.addEventListener('click', () => {
+            leaveGame();
+        });
+    }
+});
+
+async function resetGameForReplay(newMaxRounds) {
+    // 1. Reset Scores
+    const { data: party } = await supabaseClient.from('parties').select('id').eq('code', currentRoomCode).single();
+    if (!party) return;
+
+    await supabaseClient.from('joueurs').update({ score: 0, a_fini: false }).eq('partie_id', party.id);
+    await supabaseClient.from('essais').delete().eq('partie_id', party.id);
+
+    // 2. Generate New Word
+    if (typeof COMMON_WORDS === 'undefined' || COMMON_WORDS.length === 0) await loadDictionaries();
+    const rawMot = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
+    
+    const modePrefix = (selectedGameMode || 'preums').toUpperCase();
+    let duration = 0;
+    if (selectedGameMode === 'temps') {
+        duration = currentChronoDuration || 30;
+    }
+
+    // Reset Round Count
+    currentRound = 1;
+    maxRounds = newMaxRounds;
+
+    // Format: MODE:DURATION:MAX_ROUNDS:CURRENT_ROUND:WORD
+    let mot = `${modePrefix}:${duration}:${maxRounds}:${currentRound}:${rawMot}`;
+
+    // 3. Update Party
+    await supabaseClient
+        .from('parties')
+        .update({ 
+            mot_a_trouver: mot,
+            statut: 'en_cours', 
+            fin_round_at: null 
+        })
+        .eq('id', party.id);
+}
+
+// --- STATS UPDATE LOGIC ---
+
+async function updateMultiplayerStats(isWinner, totalScore, roundsPlayed) {
+    // Check if user is logged in
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (!session || !session.user) return;
+
+    const userId = session.user.id;
+
+    try {
+        // 1. Fetch current stats
+        let { data: stats, error } = await window.supabaseClient
+            .from('user_stats')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+        if (error && error.code === 'PGRST116') {
+            // Create if not exists
+            const { data: newStats, error: createError } = await window.supabaseClient
+                .from('user_stats')
+                .insert({ user_id: userId })
+                .select()
+                .single();
+            if (createError) throw createError;
+            stats = newStats;
+        } else if (error) {
+            throw error;
+        }
+
+        // 2. Calculate new stats
+        const newPlayed = (stats.multiplayer_played || 0) + 1;
+        const newWins = isWinner ? (stats.multiplayer_wins || 0) + 1 : (stats.multiplayer_wins || 0);
+        const newRounds = (stats.multiplayer_rounds_played || 0) + roundsPlayed;
+        const newTotalScore = (stats.multiplayer_total_score || 0) + totalScore;
+
+        // 3. Update DB
+        await window.supabaseClient
+            .from('user_stats')
+            .update({
+                multiplayer_played: newPlayed,
+                multiplayer_wins: newWins,
+                multiplayer_rounds_played: newRounds,
+                multiplayer_total_score: newTotalScore,
+                updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+            
+        console.log("Multiplayer Stats Updated!");
+
+    } catch (e) {
+        console.error("Error updating multiplayer stats:", e);
+    }
+}
+window.updateMultiplayerStats = updateMultiplayerStats;
+
+// --- FORCE FINISH LOGIC ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    const btnForceFinish = document.getElementById('btn-force-finish');
+    if (btnForceFinish) {
+        btnForceFinish.addEventListener('click', forceFinishGame);
+    }
+});
+
+async function forceFinishGame() {
+    if (!isHost || !currentRoomCode) return;
+
+    showCustomConfirm("Finir la partie ?", "Voulez-vous vraiment arrêter la partie maintenant ? Le classement sera finalisé.", async () => {
+        try {
+            const { data: party } = await supabaseClient
+                .from('parties')
+                .select('id')
+                .eq('code', currentRoomCode)
+                .single();
+
+            if (party) {
+                await supabaseClient
+                    .from('parties')
+                    .update({ statut: 'finished' })
+                    .eq('id', party.id);
+            }
+        } catch (e) {
+            console.error("Error forcing finish:", e);
+        }
+    });
+}
+
+// Update UI to show button for host
+const originalUpdateIngamePlayerList = window.updateIngamePlayerList; // Hook if exists, or just override
+// Actually, we can just check in refreshPlayerList or updatePlayerListUI
+
+// We'll inject the check into updateIngamePlayerList since it runs often
+// But better to do it in refreshPlayerList where we determine host status
+const _originalRefresh = window.refreshPlayerList;
+window.refreshPlayerList = async function(partyId) {
+    await _originalRefresh(partyId);
+    
+    // Update Finish Button Visibility
+    const btnForceFinish = document.getElementById('btn-force-finish');
+    if (btnForceFinish) {
+        if (isHost) {
+            btnForceFinish.classList.remove('hidden');
+        } else {
+            btnForceFinish.classList.add('hidden');
+        }
+    }
+};

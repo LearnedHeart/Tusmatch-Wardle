@@ -33,6 +33,35 @@
     <link rel="manifest" href="/assets/site.webmanifest" />
 </head>
 <body>
+    <button id="leaderboardBtn" class="leaderboard-btn" title="Classement" style="right: 160px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+            <path d="M4 22h16"></path>
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+        </svg>
+    </button>
+
+    <!-- Auth UI -->
+    <div id="auth-container" style="position: absolute; top: 60px; right: 15px; z-index: 2000;">
+        <button id="btn-login-google" class="auth-btn hidden" style="background: white; color: #333; border: 1px solid #ccc; padding: 8px 12px; border-radius: 20px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18">
+            Connexion
+        </button>
+        
+        <div id="user-profile-display" class="hidden" style="display: flex; align-items: center; gap: 15px; background: var(--tile-bg); padding: 5px 15px; border-radius: 30px; border: 1px solid var(--tile-border); box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            <div id="profile-clickable" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <img id="user-avatar-display" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--correct);">
+                <span id="user-name-display" style="font-weight: bold; font-size: 0.95rem;">Joueur</span>
+            </div>
+            <div style="width: 1px; height: 20px; background: var(--tile-border);"></div>
+            <button id="btn-logout" title="Déconnexion" style="background: none; border: none; cursor: pointer; opacity: 0.7; padding: 5px; display: flex; align-items: center; transition: opacity 0.2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--absent);"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            </button>
+        </div>
+    </div>
 
 
     <!-- Custom Leave Modal -->
@@ -67,6 +96,31 @@
                 <button id="custom-confirm-yes" class="btn-confirm">Oui</button>
                 <button id="custom-confirm-no" class="btn-cancel">Non</button>
             </div>
+        </div>
+    </div>
+
+    <!-- End Game Recap Modal -->
+    <div id="end-game-modal" class="custom-modal-overlay hidden" style="z-index: 3000;">
+        <div class="custom-modal-box" style="max-width: 500px;">
+            <h3>Fin de la partie !</h3>
+            <div id="final-scoreboard" style="margin: 20px 0; max-height: 300px; overflow-y: auto;">
+                <!-- Scores will be injected here -->
+            </div>
+            
+            <div id="host-actions" class="hidden">
+                <p style="margin-bottom: 10px; font-size: 0.9rem; opacity: 0.8;">Configurer la prochaine partie :</p>
+                <div class="slider-container" style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                    <input type="range" id="rounds-slider-replay" min="1" max="21" value="21" class="lobby-slider" style="flex: 1;">
+                    <span id="rounds-value-replay" class="slider-value" style="font-weight: bold; min-width: 30px; text-align: center;">∞</span>
+                </div>
+                <button id="btn-replay-game" class="btn-confirm" style="width: 100%;">Rejouer avec ces paramètres</button>
+            </div>
+            
+            <div id="client-waiting-msg" class="hidden">
+                <p>En attente de l'hôte...</p>
+            </div>
+
+            <button id="btn-leave-final" class="btn-cancel" style="margin-top: 10px; width: 100%;">Quitter le salon</button>
         </div>
     </div>
 
@@ -106,16 +160,28 @@
                     <h2>Créer une partie</h2>
                     
                     <!-- Game Mode Selector -->
-                    <div class="game-mode-selector" style="margin-bottom: 10px;">
-                        <div class="mode-option selected" data-mode="preums">Premier</div>
-                        <div class="mode-option" data-mode="libre">Libre</div>
-                        <div class="mode-option" data-mode="temps">Chrono</div>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <div class="game-mode-selector" style="margin: 0; flex: 1;">
+                            <div class="mode-option selected" data-mode="preums">Premier</div>
+                            <div class="mode-option" data-mode="libre">Libre</div>
+                            <div class="mode-option" data-mode="temps">Chrono</div>
+                        </div>
+                        <button id="helpModesBtn" class="help-modes-btn" title="Aide sur les modes">?</button>
                     </div>
 
                     <!-- Chrono Settings (Hidden by default) -->
                     <div id="chrono-settings" class="hidden" style="margin-bottom: 15px; width: 100%;">
                         <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Temps par ligne (sec) :</label>
                         <input type="number" id="chrono-duration" class="lobby-input" value="30" min="5" max="120" step="1" onkeypress="return event.charCode >= 48 && event.charCode <= 57" style="text-align: center;">
+                    </div>
+
+                    <!-- Rounds Settings -->
+                    <div id="rounds-settings" style="margin-bottom: 15px; width: 100%;">
+                        <label style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Nombre de manches :</label>
+                        <div class="slider-container" style="display: flex; align-items: center; gap: 15px;">
+                            <input type="range" id="rounds-slider" min="1" max="21" value="21" class="lobby-slider" style="flex: 1;">
+                            <span id="rounds-value" class="slider-value" style="font-weight: bold; min-width: 30px; text-align: center;">∞</span>
+                        </div>
                     </div>
 
                     <button id="btn-create-game" class="lobby-btn">Nouvelle Salle</button>
@@ -182,7 +248,123 @@
         </svg>
     </button>
 
+    <button id="helpBtn" class="help-btn">?</button>
     <button id="themeToggle" class="theme-switch">Thème</button>
+
+    <!-- RULES MODAL -->
+    <div id="rules-modal" class="rules-modal-overlay hidden">
+        <div class="rules-modal-content">
+            <button id="close-rules" class="rules-close-btn">×</button>
+            <h2 style="margin-bottom: 20px; font-size: 1.5rem;">Comment jouer ?</h2>
+            
+            <div class="rules-section">
+                <p style="margin-bottom: 20px; line-height: 1.6;">Devinez le mot en <strong>6 essais maximum</strong>. Après chaque tentative, les tuiles changent de couleur pour vous guider.</p>
+            </div>
+
+            <div class="rules-section">
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile correct">P</div>
+                        <div class="example-tile">L</div>
+                        <div class="example-tile">A</div>
+                        <div class="example-tile">G</div>
+                        <div class="example-tile">E</div>
+                    </div>
+                    <p>La lettre <strong>P</strong> est dans le mot et bien placée</p>
+                </div>
+
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile">V</div>
+                        <div class="example-tile present">O</div>
+                        <div class="example-tile">I</div>
+                        <div class="example-tile">L</div>
+                        <div class="example-tile">E</div>
+                    </div>
+                    <p>La lettre <strong>O</strong> est dans le mot mais mal placée</p>
+                </div>
+
+        
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile start-tile">R</div>
+                        <div class="example-tile">A</div>
+                        <div class="example-tile">D</div>
+                        <div class="example-tile">I</div>
+                        <div class="example-tile">S</div>
+                    </div>
+                    <p>La première lettre est toujours révélée pour vous aider</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODES HELP MODAL -->
+    <div id="modes-modal" class="rules-modal-overlay hidden">
+        <div class="rules-modal-content">
+            <button id="close-modes" class="rules-close-btn">×</button>
+            <h2 style="margin-bottom: 25px; font-size: 1.5rem;">Modes de jeu</h2>
+            
+            <div class="rules-section">
+                <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                        <path d="M4 22h16"></path>
+                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+                    </svg>
+                    Premier
+                </h3>
+                <p style="line-height: 1.6;">
+                    Le <strong>premier joueur</strong> à trouver le mot gagne la manche.
+                </p>
+            </div>
+
+            <div class="rules-section">
+                <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 11c-1.657 0-3 1.343-3 3s1.343 3 3 3c1.226 0 2.318-.738 3-1.707C12.318 11.738 11.226 11 10 11Z"></path>
+                        <path d="M18 11c-1.226 0-2.318.738-3 1.707C15.682 16.262 16.774 17 18 17c1.657 0 3-1.343 3-3s-1.343-3-3-3Z"></path>
+                    </svg>
+                    Libre
+                </h3>
+                <p style="line-height: 1.6;">
+                    Chacun joue à son rythme. Le joueur avec le <strong>meilleur score</strong> (moins d'essais) gagne.
+                </p>
+            </div>
+
+            <div class="rules-section">
+                <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Chrono
+                </h3>
+                <p style="line-height: 1.6; margin-bottom: 12px;">
+                    Quand un joueur <strong>valide une ligne</strong>, un chrono se déclenche pour les autres joueurs. Le premier à trouver le mot gagne !
+                </p>
+                <div class="rule-example">
+                    <div class="example-row" style="justify-content: flex-start;">
+                        <div class="example-tile correct">M</div>
+                        <div class="example-tile present">O</div>
+                        <div class="example-tile correct">T</div>
+                        <div class="example-tile absent">E</div>
+                        <div class="example-tile absent">L</div>
+                        <span style="margin-left: 10px; font-weight: 600; color: var(--present); display: flex; align-items: center; gap: 5px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            30s
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- CHAT PANEL -->
     <div id="chat-panel" class="hidden">
@@ -235,6 +417,10 @@
                 <span style="font-size: 0.7rem; opacity: 0.7;">MODE</span>
                 <span id="sidebar-game-mode" style="font-weight: bold; text-transform: uppercase; font-size: 0.8rem;">----</span>
             </div>
+            <div class="room-round-box" style="margin-left: 10px; display: flex; flex-direction: column; align-items: center;">
+                <span style="font-size: 0.7rem; opacity: 0.7;">MANCHE</span>
+                <span id="sidebar-round-info" style="font-weight: bold; font-size: 0.8rem;">1 / ∞</span>
+            </div>
             <div class="sidebar-actions">
                 <button id="sidebar-share-link" class="icon-btn" title="Copier le lien">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
@@ -248,19 +434,10 @@
             <!-- Populated by JS -->
         </div>
         
-        <!-- Sidebar Reactions -->
-        <div class="sidebar-reactions">
-            <button class="reaction-btn" onclick="sendReaction('happy')" title="Content">
-                <svg viewBox="0 0 32 32" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#FFD93D"/><circle cx="10" cy="14" r="2" fill="#5C3D2E"/><circle cx="22" cy="14" r="2" fill="#5C3D2E"/><path d="M10 20 Q16 26 22 20" stroke="#5C3D2E" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="7" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/><circle cx="25" cy="18" r="1.5" fill="#FF8B8B" opacity="0.6"/></svg>
-            </button>
-            <button class="reaction-btn" onclick="sendReaction('sad')" title="Triste">
-                <svg viewBox="0 0 32 32" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#89CFF0"/><path d="M9 14 Q11 12 13 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M19 14 Q21 12 23 14" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M12 22 Q16 18 20 22" stroke="#1A5F7A" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="23" cy="18" r="1.5" fill="#4FA3D1"/></svg>
-            </button>
-            <button class="reaction-btn" onclick="sendReaction('angry')" title="Énervé">
-                <svg viewBox="0 0 32 32" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#FF6B6B"/><path d="M9 13 L13 15" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/><path d="M23 13 L19 15" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="17" r="1.5" fill="#8B0000"/><circle cx="21" cy="17" r="1.5" fill="#8B0000"/><path d="M13 22 H19" stroke="#8B0000" stroke-width="2" stroke-linecap="round"/></svg>
-            </button>
-            <button class="reaction-btn" onclick="sendReaction('surprised')" title="Surpris">
-                <svg viewBox="0 0 32 32" width="32" height="32"><circle cx="16" cy="16" r="14" fill="#C780FA"/><circle cx="10" cy="14" r="2" fill="#4A148C"/><circle cx="22" cy="14" r="2" fill="#4A148C"/><ellipse cx="16" cy="22" rx="3" ry="4" fill="#4A148C"/><path d="M8 10 Q10 8 12 10" stroke="#4A148C" stroke-width="1" fill="none"/><path d="M20 10 Q22 8 24 10" stroke="#4A148C" stroke-width="1" fill="none"/></svg>
+        <!-- Host Actions -->
+        <div id="sidebar-host-actions" style="margin-top: auto; padding-top: 10px; border-top: 1px solid var(--tile-border);">
+            <button id="btn-force-finish" class="sidebar-btn hidden" style="width: 100%; background: var(--absent); color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                Finir la partie
             </button>
         </div>
     </div>
@@ -357,6 +534,8 @@
         </div>
     </div>
 
+    <script src="supabase-client.js"></script>
+    <script src="auth.js"></script>
     <script src="game.js"></script>
     <script src="multiplayer.js"></script>
 </body>

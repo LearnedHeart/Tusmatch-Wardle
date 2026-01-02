@@ -224,6 +224,56 @@ body.opponents-open #btn-toggle-opponents {
     text-decoration: line-through;
 }
 
+.round-option {
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--tile-border);
+    background: var(--tile-bg);
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    display: inline-block;
+    margin: 0 2px;
+}
+
+.round-option.selected {
+    background: var(--start-tile);
+    color: white;
+    border-color: var(--start-tile);
+    opacity: 1;
+    font-weight: bold;
+}
+
+.round-option-replay {
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--tile-border);
+    background: var(--tile-bg);
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: all 0.2s;
+    user-select: none;
+    outline: none;
+    display: inline-block;
+    margin: 0 2px;
+}
+
+.round-option-replay.selected {
+    background: var(--start-tile);
+    color: white;
+    border-color: var(--start-tile);
+    opacity: 1;
+    font-weight: bold;
+}
+
 /* In-Game Room Info */
 #room-info-bar {
     position: absolute; top: 20px; left: 50%; transform: translateX(-50%);

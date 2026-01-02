@@ -29,3 +29,24 @@ themeBtn.addEventListener('click', () => {
     localStorage.setItem('theme', newTheme);
     themeBtn.textContent = themeLabel(newTheme);
 });
+
+// Gestion de la modale de règles
+const helpBtn = document.getElementById('helpBtn');
+const rulesModal = document.getElementById('rules-modal');
+const closeRulesBtn = document.getElementById('close-rules');
+
+if (helpBtn && rulesModal) {
+    helpBtn.addEventListener('click', () => {
+        rulesModal.classList.remove('hidden');
+    });
+
+    closeRulesBtn.addEventListener('click', () => {
+        rulesModal.classList.add('hidden');
+    });
+
+    rulesModal.addEventListener('click', (e) => {
+        if (e.target === rulesModal) {
+            rulesModal.classList.add('hidden');
+        }
+    });
+}

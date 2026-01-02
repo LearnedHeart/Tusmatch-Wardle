@@ -32,7 +32,95 @@
     <link rel="manifest" href="/assets/site.webmanifest" />
 </head>
 <body>
+    <!-- Auth UI -->
+    <div id="auth-container" style="position: absolute; top: 20px; left: 20px; z-index: 2000;">
+        <button id="btn-login-google" class="auth-btn hidden" style="background: white; color: #333; border: 1px solid #ccc; padding: 8px 12px; border-radius: 20px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18">
+            Connexion
+        </button>
+        
+        <div id="user-profile-display" class="hidden" style="display: flex; align-items: center; gap: 15px; background: var(--tile-bg); padding: 5px 15px; border-radius: 30px; border: 1px solid var(--tile-border); box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            <div id="profile-clickable" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <img id="user-avatar-display" src="" style="width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--correct);">
+                <span id="user-name-display" style="font-weight: bold; font-size: 0.95rem;">Joueur</span>
+            </div>
+            <div style="width: 1px; height: 20px; background: var(--tile-border);"></div>
+            <button id="btn-logout" title="Déconnexion" style="background: none; border: none; cursor: pointer; opacity: 0.7; padding: 5px; display: flex; align-items: center; transition: opacity 0.2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--absent);"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            </button>
+        </div>
+    </div>
+
+    <button id="helpBtn" class="help-btn">?</button>
+    <button id="leaderboardBtn" class="leaderboard-btn" title="Classement">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+            <path d="M4 22h16"></path>
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+        </svg>
+    </button>
     <button id="themeToggle" class="theme-switch">Thème</button>
+
+    <!-- RULES MODAL -->
+    <div id="rules-modal" class="rules-modal-overlay hidden">
+        <div class="rules-modal-content">
+            <button id="close-rules" class="rules-close-btn">×</button>
+            <h2 style="margin-bottom: 20px; font-size: 1.5rem;">Comment jouer ?</h2>
+            
+            <div class="rules-section">
+                <p style="margin-bottom: 20px; line-height: 1.6;">Devinez le mot en <strong>6 essais maximum</strong>. Après chaque tentative, les tuiles changent de couleur pour vous guider.</p>
+            </div>
+
+            <div class="rules-section">
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile correct">P</div>
+                        <div class="example-tile">L</div>
+                        <div class="example-tile">A</div>
+                        <div class="example-tile">G</div>
+                        <div class="example-tile">E</div>
+                    </div>
+                    <p>La lettre <strong>P</strong> est dans le mot et bien placée</p>
+                </div>
+
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile">V</div>
+                        <div class="example-tile present">O</div>
+                        <div class="example-tile">I</div>
+                        <div class="example-tile">L</div>
+                        <div class="example-tile">E</div>
+                    </div>
+                    <p>La lettre <strong>O</strong> est dans le mot mais mal placée</p>
+                </div>
+
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile">M</div>
+                        <div class="example-tile">O</div>
+                        <div class="example-tile absent">U</div>
+                        <div class="example-tile">R</div>
+                        <div class="example-tile">S</div>
+                    </div>
+                    <p>La lettre <strong>U</strong> n'est pas dans le mot</p>
+                </div>
+
+                <div class="rule-example">
+                    <div class="example-row">
+                        <div class="example-tile start-tile">P</div>
+                        <div class="example-tile">A</div>
+                        <div class="example-tile">R</div>
+                        <div class="example-tile">I</div>
+                        <div class="example-tile">S</div>
+                    </div>
+                    <p>La première lettre est toujours révélée pour vous aider</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="home-container">
         <h1>TUSMATCH</h1>
@@ -66,6 +154,9 @@
         </nav>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="auth.js"></script>
     <script src="home.js"></script>
 </body>
 </html>

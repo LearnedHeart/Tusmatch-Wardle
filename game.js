@@ -1,19 +1,8 @@
 // game.js
 
 // --- SUPABASE CONFIGURATION ---
-// REMPLACE CES VALEURS PAR CELLES DE TON PROJET SUPABASE
-const supabaseUrl = 'https://mimieikswytpoouowlye.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pbWllaWtzd3l0cG9vdW93bHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2OTc4MTYsImV4cCI6MjA4MTI3MzgxNn0.Jvg5YSZCW_5kbGRwkGD0e6k5QGcSlfpY4QtvwDzJUq4';
-// On utilise un nom différent pour éviter les conflits avec la librairie globale 'supabase'
-let supabaseClient = null;
-
-if (typeof createClient !== 'undefined') {
-    supabaseClient = createClient(supabaseUrl, supabaseKey);
-} else if (window.supabase && typeof window.supabase.createClient === 'function') {
-    supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-} else {
-    console.error("Impossible d'initialiser Supabase : createClient introuvable.");
-}
+// Initialisation déplacée dans supabase-client.js
+// supabaseClient est maintenant disponible globalement via window.supabaseClient
 
 // --- CONFIGURATION ---
 let wordLength = 5;
@@ -27,6 +16,7 @@ let currentGuess = [];
 let guesses = [];
 let isGameOver = false;
 let currentHints = [];
+let hasPlayedDailyToday = false; // Track if daily game already played
 
 const grid = document.getElementById("grid");
 const themeBtn = document.getElementById("themeToggle");
@@ -34,7 +24,8 @@ const themeBtn = document.getElementById("themeToggle");
 async function loadDictionaries() {
     try {
         // Charger le dictionnaire complet (mots valides)
-        const responseDict = await fetch('mots.txt');
+        // Ajout d'un timestamp pour éviter le cache navigateur
+        const responseDict = await fetch('mots.txt?v=' + new Date().getTime());
         const textDict = await responseDict.text();
         DICTIONARY = textDict.split('\n')
             .map(line => {
@@ -45,7 +36,7 @@ async function loadDictionaries() {
             .filter(word => word.length > 0);
 
         // Charger les mots courants (mots cibles)
-        const responseCommon = await fetch('mots_courants.txt');
+        const responseCommon = await fetch('mots_courants.txt?v=' + new Date().getTime());
         const textCommon = await responseCommon.text();
         window.COMMON_WORDS = textCommon.split('\n')
             .map(line => {
@@ -115,6 +106,36 @@ window.testNextDay = function(days = 1) {
     }
 };
 
+async function checkDailyStatus() {
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (!session || !session.user) return;
+
+    try {
+        const { data: stats, error } = await window.supabaseClient
+            .from('user_stats')
+            .select('last_daily_date')
+            .eq('user_id', session.user.id)
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error("Error checking daily status:", error);
+            return;
+        }
+
+        if (stats && stats.last_daily_date) {
+            const today = new Date().toISOString().split('T')[0];
+            if (stats.last_daily_date === today) {
+                hasPlayedDailyToday = true;
+                setTimeout(() => {
+                    showToast("Vous avez déjà joué aujourd'hui. Cette partie ne comptera pas pour vos statistiques.");
+                }, 1000);
+            }
+        }
+    } catch (e) {
+        console.error("Exception checking daily status:", e);
+    }
+}
+
 // --- INITIALISATION ---
 async function initGame(customWord = null) {
     if (DICTIONARY.length === 0 || COMMON_WORDS.length === 0) {
@@ -130,6 +151,7 @@ async function initGame(customWord = null) {
         if (dailyWord) {
             targetWord = dailyWord.toUpperCase();
             // console.log("Mot du jour chargé (Local) :", targetWord);
+            checkDailyStatus(); // Check if already played
         } else {
             // Fallback ultime
             targetWord = COMMON_WORDS[Math.floor(Math.random() * COMMON_WORDS.length)];
@@ -178,8 +200,13 @@ async function initGame(customWord = null) {
     }
     
     // Charger le thème (par défaut 'light' -> Clair)
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.body.className = savedTheme;
+    const savedTheme = localStorage.getItem('theme');
+    if (!savedTheme || savedTheme === 'light' || savedTheme === '') {
+        document.body.className = 'claire';
+        localStorage.setItem('theme', 'claire');
+    } else {
+        document.body.className = savedTheme;
+    }
 
     updateGrid();
 }
@@ -237,6 +264,15 @@ function handleEnter() {
     const filled = currentGuess.filter(Boolean).length;
     if (filled !== wordLength) {
         animateShake();
+        // Faire clignoter toutes les lettres manquantes
+        const row = grid.children[guesses.length];
+        const tiles = row.children;
+        for (let i = 0; i < wordLength; i++) {
+            if (!currentGuess[i]) {
+                tiles[i].classList.add('blink');
+                setTimeout(() => tiles[i].classList.remove('blink'), 2400);
+            }
+        }
         return;
     }
     
@@ -415,6 +451,10 @@ function submitGuess() {
                 // If single player, show screen.
                 if (!isMultiplayer) {
                     showEndScreen(true, targetWord, null, score);
+                    // Update Daily Stats
+                    if (typeof updateDailyStats === 'function') {
+                        updateDailyStats(true, guesses.length);
+                    }
                 }
                 // If multiplayer, handleRoundEnd will take over when ready
             });
@@ -432,6 +472,10 @@ function submitGuess() {
                 // If single player, show screen.
                 if (!isMultiplayer) {
                     showEndScreen(false, targetWord, null, score);
+                    // Update Daily Stats
+                    if (typeof updateDailyStats === 'function') {
+                        updateDailyStats(false, guesses.length);
+                    }
                 }
                 // If multiplayer, handleRoundEnd will take over when ready
             });
@@ -578,8 +622,15 @@ function themeLabel(cls) {
 }
 
 // Initialiser label bouton thème
-const savedThemeBtn = localStorage.getItem('theme') || '';
-document.body.className = savedThemeBtn;
+
+let savedThemeBtn = localStorage.getItem('theme');
+if (!savedThemeBtn || savedThemeBtn === 'light' || savedThemeBtn === '') {
+    document.body.className = 'claire';
+    localStorage.setItem('theme', 'claire');
+    savedThemeBtn = 'claire';
+} else {
+    document.body.className = savedThemeBtn;
+}
 themeBtn.textContent = themeLabel(savedThemeBtn);
 
 themeBtn.addEventListener('click', () => {
@@ -590,6 +641,48 @@ themeBtn.addEventListener('click', () => {
     localStorage.setItem('theme', newTheme);
     themeBtn.textContent = themeLabel(newTheme);
 });
+
+// Gestion de la modale de règles
+const helpBtn = document.getElementById('helpBtn');
+const rulesModal = document.getElementById('rules-modal');
+const closeRulesBtn = document.getElementById('close-rules');
+
+if (helpBtn && rulesModal) {
+    helpBtn.addEventListener('click', () => {
+        rulesModal.classList.remove('hidden');
+    });
+
+    closeRulesBtn.addEventListener('click', () => {
+        rulesModal.classList.add('hidden');
+    });
+
+    rulesModal.addEventListener('click', (e) => {
+        if (e.target === rulesModal) {
+            rulesModal.classList.add('hidden');
+        }
+    });
+}
+
+// Gestion de la modale des modes de jeu
+const helpModesBtn = document.getElementById('helpModesBtn');
+const modesModal = document.getElementById('modes-modal');
+const closeModesBtn = document.getElementById('close-modes');
+
+if (helpModesBtn && modesModal) {
+    helpModesBtn.addEventListener('click', () => { 
+        modesModal.classList.remove('hidden');
+    });
+
+    closeModesBtn.addEventListener('click', () => {
+        modesModal.classList.add('hidden');
+    });
+
+    modesModal.addEventListener('click', (e) => {
+        if (e.target === modesModal) {
+            modesModal.classList.add('hidden');
+        }
+    });
+}
 
 
 
@@ -993,3 +1086,80 @@ window.forceEndRoundAnimation = function(onComplete) {
         onComplete();
     }
 };
+// --- STATS UPDATE LOGIC ---
+
+async function updateDailyStats(victory, guessCount) {
+    // Check if user is logged in
+    const { data: { session } } = await window.supabaseClient.auth.getSession();
+    if (!session || !session.user) return;
+
+    // Check if already played today
+    if (hasPlayedDailyToday) {
+        console.log("Stats not updated: Already played today.");
+        return;
+    }
+
+    const userId = session.user.id;
+
+    try {
+        // 1. Fetch current stats
+        let { data: stats, error } = await window.supabaseClient
+            .from('user_stats')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+        if (error && error.code === 'PGRST116') {
+            // Create if not exists
+            const { data: newStats, error: createError } = await window.supabaseClient
+                .from('user_stats')
+                .insert({ user_id: userId })
+                .select()
+                .single();
+            if (createError) throw createError;
+            stats = newStats;
+        } else if (error) {
+            throw error;
+        }
+
+        // 2. Calculate new stats
+        const newPlayed = (stats.daily_played || 0) + 1;
+        const newWins = victory ? (stats.daily_wins || 0) + 1 : (stats.daily_wins || 0);
+        
+        let newStreak = stats.daily_current_streak || 0;
+        if (victory) {
+            newStreak++;
+        } else {
+            newStreak = 0;
+        }
+        
+        const newMaxStreak = Math.max(stats.daily_max_streak || 0, newStreak);
+        
+        // Distribution
+        let distribution = stats.daily_distribution || [0,0,0,0,0,0];
+        if (victory && guessCount >= 1 && guessCount <= 6) {
+            distribution[guessCount - 1]++;
+        }
+
+        // 3. Update DB
+        await window.supabaseClient
+            .from('user_stats')
+            .update({
+                daily_played: newPlayed,
+                daily_wins: newWins,
+                daily_current_streak: newStreak,
+                daily_max_streak: newMaxStreak,
+                daily_distribution: distribution,
+                last_daily_date: new Date().toISOString().split('T')[0], // Mark as played today
+                updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+            
+        console.log("Daily Stats Updated!");
+        hasPlayedDailyToday = true; // Prevent double update in same session
+
+    } catch (e) {
+        console.error("Error updating daily stats:", e);
+    }
+}
+window.updateDailyStats = updateDailyStats;
