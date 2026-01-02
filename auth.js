@@ -329,7 +329,7 @@ function injectProfileModal() {
     document.getElementById('btn-close-profile').addEventListener('click', closeProfileModal);
     
     // Friend Listeners
-    document.getElementById('btn-add-friend').addEventListener('click', addFriendByCode);
+    document.getElementById('btn-add-friend').addEventListener('click', () => addFriendByCode('add-friend-input'));
     document.getElementById('my-friend-code').addEventListener('click', (e) => {
         navigator.clipboard.writeText(e.target.textContent);
         showAuthToast("Code copié !");
@@ -425,9 +425,19 @@ async function fetchUserStats(userId) {
 // --- FRIEND LOGIC ---
 
 async function addFriendByCode(inputId = 'add-friend-input') {
+    // Defensive check: if inputId is an event object (or not a string), use default
+    if (typeof inputId !== 'string') {
+        console.warn("addFriendByCode called with non-string argument, defaulting to 'add-friend-input'", inputId);
+        inputId = 'add-friend-input';
+    }
+
+    console.log("addFriendByCode appelé avec inputId:", inputId);
     const input = document.getElementById(inputId);
+    console.log("Input trouvé:", input);
+    
     if (!input) {
         console.error("Input not found:", inputId);
+        showAuthToast("Erreur: champ de saisie introuvable");
         return;
     }
     const code = input.value.trim().toUpperCase();
