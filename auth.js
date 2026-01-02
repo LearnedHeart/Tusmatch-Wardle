@@ -111,6 +111,8 @@ function updateUI(user) {
 
             // Initialize Invite Listener
             initInviteListener();
+            // Check for pending invites (missed while offline)
+            checkPendingInvites();
         }
     } else {
         // LOGGED OUT
@@ -237,6 +239,7 @@ function injectProfileModal() {
 
             <div class="modal-actions">
                 <button id="btn-save-profile" class="btn-confirm">Enregistrer</button>
+                <button id="btn-modal-logout" class="btn-cancel" style="background: var(--absent); color: white;">Déconnexion</button>
                 <button id="btn-close-profile" class="btn-cancel">Fermer</button>
             </div>
         </div>
@@ -251,6 +254,7 @@ function injectProfileModal() {
         const name = document.getElementById('profile-modal-pseudo').value.trim();
         if (name) updateUserProfile(name, profileAvatarIndex);
     });
+    document.getElementById('btn-modal-logout').addEventListener('click', signOut);
     document.getElementById('btn-close-profile').addEventListener('click', closeProfileModal);
     
     // Friend Listeners
@@ -311,7 +315,10 @@ async function fetchUserStats(userId) {
         if (data) {
             // Friend Code
             if (data.friend_code) {
-                document.getElementById('my-friend-code').textContent = data.friend_code;
+                const codeEl = document.getElementById('my-friend-code');
+                const inviteCodeEl = document.getElementById('invite-my-code');
+                if (codeEl) codeEl.textContent = data.friend_code;
+                if (inviteCodeEl) inviteCodeEl.textContent = data.friend_code;
             }
 
             // Daily Stats
@@ -345,8 +352,9 @@ async function fetchUserStats(userId) {
 
 // --- FRIEND LOGIC ---
 
-async function addFriendByCode() {
-    const input = document.getElementById('add-friend-input');
+async function addFriendByCode(inputId = 'add-friend-input') {
+    const input = document.getElementById(inputId);
+    if (!input) return;
     const code = input.value.trim().toUpperCase();
     
     if (code.length < 6) {
@@ -397,7 +405,8 @@ async function addFriendByCode() {
         } else {
             showAuthToast("Demande envoyée !");
             input.value = "";
-            loadFriendsList();
+            loadFriendsList('friends-list-container');
+            loadFriendsList('invite-friends-list');
         }
         
     } catch (e) {
@@ -408,8 +417,10 @@ async function addFriendByCode() {
     input.disabled = false;
 }
 
-async function loadFriendsList() {
-    const container = document.getElementById('friends-list-container');
+async function loadFriendsList(containerId = 'friends-list-container') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
     container.innerHTML = '<p style="text-align: center; opacity: 0.6; font-size: 0.9rem;">Chargement...</p>';
     
     try {
@@ -484,7 +495,8 @@ window.acceptFriend = async function(friendshipId) {
             .eq('id', friendshipId);
             
         if (error) throw error;
-        loadFriendsList();
+        loadFriendsList('friends-list-container');
+        loadFriendsList('invite-friends-list');
         showAuthToast("Ami accepté !");
     } catch (e) {
         console.error(e);
@@ -526,30 +538,66 @@ function initInviteListener() {
 }
 
 function showInviteToast(invite) {
+    // Check if toast already exists for this invite
+    if (document.getElementById(`invite-toast-${invite.id}`)) return;
+
     // Custom toast with "Accept" button
     const toast = document.createElement('div');
+    toast.id = `invite-toast-${invite.id}`;
     toast.className = 'auth-toast';
-    toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #333; color: white; padding: 15px; border-radius: 8px; z-index: 6000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 10px; min-width: 200px;';
+    toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #333; color: white; padding: 15px; border-radius: 8px; z-index: 6000; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 10px; min-width: 200px; animation: slideIn 0.3s ease-out;';
     
     toast.innerHTML = `
         <div style="font-weight: bold; color: var(--present);">Invitation à jouer !</div>
         <div style="font-size:0.9rem;">Code: ${invite.room_code}</div>
         <div style="display: flex; gap: 10px;">
-            <button onclick="acceptInvite('${invite.room_code}')" style="flex: 1; background: var(--correct); color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">Rejoindre</button>
-            <button onclick="this.parentElement.parentElement.remove()" style="flex: 1; background: rgba(255,255,255,0.2); color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer;">Ignorer</button>
+            <button onclick="acceptInvite('${invite.room_code}', '${invite.id}')" style="flex: 1; background: var(--correct); color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer; font-weight: bold;">Rejoindre</button>
+            <button onclick="declineInvite('${invite.id}')" style="flex: 1; background: rgba(255,255,255,0.2); color: white; border: none; padding: 5px; border-radius: 4px; cursor: pointer;">Ignorer</button>
         </div>
     `;
     document.body.appendChild(toast);
     
-    // Auto remove after 15s
+    // Auto remove after 30s (extended)
     setTimeout(() => {
-        if (toast.parentElement) toast.remove();
-    }, 15000);
+        if (document.body.contains(toast)) toast.remove();
+    }, 30000);
 }
 
-window.acceptInvite = function(code) {
+window.acceptInvite = async function(code, inviteId) {
+    if (inviteId) {
+        // Delete invite from DB
+        await supabaseClient.from('game_invites').delete().eq('id', inviteId);
+    }
     window.location.href = `game.html?mode=private&code=${code}`;
 };
+
+window.declineInvite = async function(inviteId) {
+    const toast = document.getElementById(`invite-toast-${inviteId}`);
+    if (toast) toast.remove();
+    
+    if (inviteId) {
+        await supabaseClient.from('game_invites').delete().eq('id', inviteId);
+    }
+};
+
+async function checkPendingInvites() {
+    if (!currentUser) return;
+    
+    try {
+        const { data: invites, error } = await supabaseClient
+            .from('game_invites')
+            .select('*')
+            .eq('receiver_id', currentUser.id);
+            
+        if (error) throw error;
+        
+        if (invites && invites.length > 0) {
+            invites.forEach(invite => showInviteToast(invite));
+        }
+    } catch (e) {
+        console.error("Error checking invites:", e);
+    }
+}
 
 
 function closeProfileModal() {
@@ -673,11 +721,57 @@ async function loadLeaderboard(type) {
     }
 }
 
+// --- INVITE MODAL LOGIC ---
+
+function initInviteModal() {
+    const inviteBtn = document.getElementById('inviteBtn');
+    const inviteBtnLobby = document.getElementById('btn-invite-friend-lobby');
+    const closeBtn = document.getElementById('close-invite');
+    const addBtn = document.getElementById('btn-invite-add');
+    const myCode = document.getElementById('invite-my-code');
+
+    if (inviteBtn) inviteBtn.addEventListener('click', openInviteModal);
+    if (inviteBtnLobby) inviteBtnLobby.addEventListener('click', openInviteModal);
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            document.getElementById('invite-modal').classList.add('hidden');
+        });
+    }
+
+    if (addBtn) {
+        addBtn.addEventListener('click', () => addFriendByCode('invite-friend-input'));
+    }
+
+    if (myCode) {
+        myCode.addEventListener('click', (e) => {
+            navigator.clipboard.writeText(e.target.textContent);
+            showAuthToast("Code copié !");
+        });
+    }
+}
+
+function openInviteModal() {
+    if (!currentUser) {
+        showAuthToast("Connectez-vous pour inviter des amis !");
+        return;
+    }
+    
+    const modal = document.getElementById('invite-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Load friend code (and stats)
+        fetchUserStats(currentUser.id);
+        loadFriendsList('invite-friends-list');
+    }
+}
+
 // --- INITIALIZATION ---
 
 document.addEventListener('DOMContentLoaded', async () => {
     injectProfileModal();
     injectLeaderboardModal();
+    initInviteModal();
 
     const loginBtn = document.getElementById('btn-login-google');
     const logoutBtn = document.getElementById('btn-logout');

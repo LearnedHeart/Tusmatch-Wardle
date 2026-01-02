@@ -1047,3 +1047,365 @@ body.claire .key.absent {
 
 /* --- UTILITY --- */
 .hidden { display: none !important; }
+
+/* --- CHAT BUTTON (Global) --- */
+#btn-toggle-chat {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    width: 50px;
+    height: 50px;
+    border-radius: 50% !important;
+    background: var(--key-bg);
+    color: var(--text-color);
+    border: 2px solid var(--tile-border) !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    transition: transform 0.2s;
+}
+#btn-toggle-chat:hover {
+    transform: scale(1.1) !important;
+}
+
+/* --- PROFILE MODAL IMPROVEMENTS --- */
+.custom-modal-box {
+    border-radius: 25px;
+    background: var(--bg-color); /* Match theme */
+    border: 2px solid var(--tile-border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    color: var(--text-color);
+}
+
+.custom-modal-box h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    color: var(--present); /* Gold/Yellow accent */
+}
+
+.tab-btn {
+    border-radius: 20px;
+    padding: 8px 20px;
+    border: 2px solid transparent;
+    background: rgba(0,0,0,0.1);
+    color: var(--text-color);
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.tab-btn.active {
+    background: var(--correct);
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.avatar-nav-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--tile-bg);
+    border: 1px solid var(--tile-border);
+    color: var(--text-color);
+    font-weight: bold;
+}
+
+.modal-actions button {
+    border-radius: 20px;
+    padding: 10px 25px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* --- MOBILE OPTIMIZATION --- */
+@media (max-width: 600px) {
+    /* Header Buttons: Compact Row at Top Right */
+    .theme-switch {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        background: var(--tile-bg);
+        backdrop-filter: blur(5px);
+    }
+
+    .help-btn {
+        top: 10px;
+        right: 60px; /* 10 + 40 + 10 gap */
+        width: 40px;
+        height: 40px;
+    }
+
+    .leaderboard-btn {
+        top: 10px;
+        right: 110px; /* 60 + 40 + 10 gap */
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Auth Container: Integrate into the row */
+    #auth-container {
+        position: fixed !important;
+        top: 10px !important;
+        right: 160px !important; /* 110 + 40 + 10 gap */
+        left: auto !important; /* Reset left */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+    }
+
+    /* Google Login Button: Icon Only */
+    #btn-login-google {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 50%;
+        font-size: 0; /* Hide text */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        border: 2px solid var(--tile-border);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    #btn-login-google img {
+        margin: 0; /* Remove gap */
+    }
+
+    /* User Profile Display: Icon Only */
+    #user-profile-display {
+        padding: 0;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 40px;
+    }
+
+    #profile-clickable {
+        gap: 0;
+    }
+
+    #user-name-display, 
+    #user-profile-display > div:nth-child(2), /* Separator */
+    #btn-logout {
+        display: none !important; /* Force hide name, separator, logout on main view */
+    }
+
+    #user-avatar-display {
+        width: 40px;
+        height: 40px;
+        border: 2px solid var(--correct);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Game Container Adjustment */
+    .game-container {
+        margin-top: 80px; /* Less space needed now */
+        padding: 5px;
+        gap: 5px;
+    }
+    
+    /* Modal Adjustments */
+    .custom-modal-box {
+        width: 90%;
+        padding: 20px;
+        max-height: 85vh;
+        overflow-y: auto; /* Enable scrolling */
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    
+    /* Keyboard Adjustments */
+    .keyboard-container {
+        padding-bottom: 10px;
+        gap: 3px;
+    }
+    
+    .key {
+        height: 45px;
+        font-size: 1rem;
+        margin: 0 2px;
+        border-radius: 6px;
+    }
+    
+    /* Title Adjustment */
+    h1 {
+        font-size: 2.5rem;
+        margin-top: 60px;
+    }
+}
+
+/* --- NEW BUTTON STYLES --- */
+
+/* Invite Button (Desktop) */
+.invite-btn {
+    position: fixed;
+    top: 20px;
+    right: 210px; /* Positioned to the left of Leaderboard (which is at 160px) */
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    z-index: 2000;
+}
+
+.invite-btn:hover {
+    background: var(--tile-border);
+}
+
+/* Circular Google Login Button */
+#btn-login-google {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+#btn-login-google:hover {
+    transform: scale(1.05);
+}
+
+#btn-login-google img {
+    width: 24px;
+    height: 24px;
+    display: block;
+    margin: 0 !important;
+}
+
+/* --- UPDATED MOBILE OPTIMIZATION --- */
+@media (max-width: 600px) {
+    /* Header Buttons: Compact Row at Top Right */
+    /* Order (Right to Left): Theme, Invite, Help, Leaderboard */
+    
+    .theme-switch {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: 1.2rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 2100;
+    }
+
+    .invite-btn {
+        position: fixed;
+        top: 10px;
+        right: 58px; /* 10 + 38 + 10 gap */
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        background: var(--tile-bg);
+        border: 1px solid var(--tile-border);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        z-index: 2100;
+    }
+
+    .help-btn {
+        top: 10px;
+        right: 106px; /* 58 + 38 + 10 gap */
+        width: 38px;
+        height: 38px;
+        z-index: 2100;
+    }
+
+    .leaderboard-btn {
+        top: 10px;
+        right: 154px; /* 106 + 38 + 10 gap */
+        width: 38px;
+        height: 38px;
+        z-index: 2100;
+    }
+
+    /* Auth Container: Move below buttons */
+    #auth-container {
+        top: 58px; /* Below the buttons row */
+        right: 10px;
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    #btn-login-google {
+        width: 38px;
+        height: 38px;
+    }
+
+    #user-profile-display {
+        padding: 4px 8px;
+        gap: 8px;
+        background: var(--tile-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--tile-border);
+        border-radius: 20px;
+    }
+
+    #user-name-display {
+        display: none; /* Hide name on mobile to save space */
+    }
+    
+    /* Hide logout button on mobile to prevent layout shift */
+    #btn-logout {
+        display: none !important;
+    }
+
+    #user-avatar-display {
+        width: 28px;
+        height: 28px;
+        border-width: 2px;
+    }
+
+    /* Game Container Adjustment */
+    .game-container {
+        margin-top: 100px; /* Ensure space for header elements */
+        padding: 5px;
+        gap: 10px;
+    }
+    
+    /* Modal Adjustments */
+    .custom-modal-box, .rules-modal-content {
+        width: 95%;
+        padding: 15px;
+        max-height: 90vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
