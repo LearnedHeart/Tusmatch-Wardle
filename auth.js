@@ -806,7 +806,7 @@ async function loadLeaderboard(type) {
         let query = supabaseClient
             .from('user_stats')
             .select('*')
-            .order('daily_wins', { ascending: false })
+            .order('daily_total_points', { ascending: false })
             .limit(50);
 
         if (type === 'friends') {
@@ -830,7 +830,7 @@ async function loadLeaderboard(type) {
                 .from('user_stats')
                 .select('*')
                 .in('user_id', friendIds)
-                .order('daily_wins', { ascending: false });
+                .order('daily_total_points', { ascending: false });
         }
 
         const { data: stats, error } = await query;
@@ -843,7 +843,7 @@ async function loadLeaderboard(type) {
         }
 
         let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">';
-        html += '<tr style="border-bottom: 1px solid #ccc; text-align: left;"><th style="padding: 5px;">#</th><th style="padding: 5px;">Joueur</th><th style="padding: 5px;">Victoires Jour</th><th style="padding: 5px;">Victoires Multi</th></tr>';
+        html += '<tr style="border-bottom: 1px solid #ccc; text-align: left;"><th style="padding: 5px;">#</th><th style="padding: 5px;">Joueur</th><th style="padding: 5px;">Points Jour</th><th style="padding: 5px;">Victoires Multi</th></tr>';
         
         stats.forEach((s, index) => {
             const isMe = currentUser && s.user_id === currentUser.id;
@@ -854,7 +854,7 @@ async function loadLeaderboard(type) {
             html += `<tr style="${style} border-bottom: 1px solid var(--tile-border);">
                 <td style="padding: 8px;">${index + 1}</td>
                 <td style="padding: 8px;">${name}</td>
-                <td style="padding: 8px;">${s.daily_wins || 0}</td>
+                <td style="padding: 8px;">${s.daily_total_points || 0} pts</td>
                 <td style="padding: 8px;">${s.multiplayer_wins || 0}</td>
             </tr>`;
         });

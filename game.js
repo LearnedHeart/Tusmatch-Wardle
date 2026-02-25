@@ -453,7 +453,7 @@ function submitGuess() {
                     showEndScreen(true, targetWord, null, score);
                     // Update Daily Stats
                     if (typeof updateDailyStats === 'function') {
-                        updateDailyStats(true, guesses.length);
+                        updateDailyStats(true, guesses.length, score);
                     }
                 }
                 // If multiplayer, handleRoundEnd will take over when ready
@@ -474,7 +474,7 @@ function submitGuess() {
                     showEndScreen(false, targetWord, null, score);
                     // Update Daily Stats
                     if (typeof updateDailyStats === 'function') {
-                        updateDailyStats(false, guesses.length);
+                        updateDailyStats(false, guesses.length, score);
                     }
                 }
                 // If multiplayer, handleRoundEnd will take over when ready
@@ -1093,7 +1093,7 @@ window.forceEndRoundAnimation = function(onComplete) {
 };
 // --- STATS UPDATE LOGIC ---
 
-async function updateDailyStats(victory, guessCount) {
+async function updateDailyStats(victory, guessCount, score = 0) {
     // Check if user is logged in
     const { data: { session } } = await window.supabaseClient.auth.getSession();
     if (!session || !session.user) return;
@@ -1146,6 +1146,9 @@ async function updateDailyStats(victory, guessCount) {
             distribution[guessCount - 1]++;
         }
 
+        // Cumul des points journaliers
+        const newTotalPoints = (stats.daily_total_points || 0) + (score || 0);
+
         // 3. Update DB
         await window.supabaseClient
             .from('user_stats')
@@ -1155,6 +1158,7 @@ async function updateDailyStats(victory, guessCount) {
                 daily_current_streak: newStreak,
                 daily_max_streak: newMaxStreak,
                 daily_distribution: distribution,
+                daily_total_points: newTotalPoints,
                 last_daily_date: new Date().toISOString().split('T')[0], // Mark as played today
                 updated_at: new Date().toISOString()
             })
